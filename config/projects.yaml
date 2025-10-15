@@ -1,15 +1,18 @@
 projects:
   - name: staffprobot
     path: /projects/staffprobot
-    git_url: https://github.com/your-org/staffprobot
+    git_url: https://github.com/Deniskada/staffprobot
     index_patterns:
       - "**/*.py"
       - "**/*.md"
-      - "**/*.html"
     exclude_patterns:
       - "**/venv/**"
       - "**/__pycache__/**"
       - "**/node_modules/**"
       - "**/.git/**"
+      - "**/htmlcov/**"
+      - "**/migrations/**"
+      - "**/tests/**"
+      - "**/scripts/**"
     rules_path: "doc/conventions.mdc"
-    description: "StaffProBot - система управления персоналом"
+    description: "StaffProBot - только основной код (apps, core, domain, doc)"

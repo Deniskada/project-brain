@@ -86,8 +86,10 @@ class PythonIndexer:
                     "content": f"Модуль {os.path.basename(file_path)}:\n{module_docstring}",
                     "file": file_path,
                     "lines": "1-10",
+                    "start_line": 1,
+                    "end_line": 10,
                     "type": "module_docstring",
-                    "chunk_id": 0
+                    "chunk_id": hash(f"{file_path}_module_docstring")
                 }
                 chunks.append(chunk)
             
@@ -130,6 +132,8 @@ class PythonIndexer:
                 "content": chunk_content,
                 "file": file_path,
                 "lines": f"{start_line}-{end_line}",
+                "start_line": start_line,
+                "end_line": end_line,
                 "type": "class",
                 "class_name": node.name,
                 "chunk_id": hash(f"{file_path}_{node.name}")
@@ -168,6 +172,8 @@ class PythonIndexer:
                 "content": chunk_content,
                 "file": file_path,
                 "lines": f"{start_line}-{end_line}",
+                "start_line": start_line,
+                "end_line": end_line,
                 "type": "function",
                 "function_name": node.name,
                 "chunk_id": hash(f"{file_path}_{node.name}")
@@ -206,6 +212,8 @@ class PythonIndexer:
                 "content": chunk_content,
                 "file": file_path,
                 "lines": "1-20",
+                "start_line": 1,
+                "end_line": 20,
                 "type": "imports",
                 "chunk_id": hash(f"{file_path}_imports")
             }

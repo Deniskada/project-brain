@@ -19,4 +19,4 @@ COPY . .
 RUN mkdir -p /app/data /app/logs
 
 # Команда по умолчанию
-CMD ["python", "-m", "uvicorn", "backend.api.main:app", "--host", "0.0.0.0", "--port", "8001"]
+CMD ["python", "-m", "uvicorn", "backend.api.main:app", "--host", "0.0.0.0", "--port", "8003"]

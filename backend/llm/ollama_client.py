@@ -5,40 +5,22 @@ import logging
 import httpx
 from typing import List, Dict, Any, Optional
 import json
+import os
 
 logger = logging.getLogger(__name__)
 
 class OllamaClient:
-    def __init__(self, base_url: str = "http://ollama:11434"):
-        self.base_url = base_url
-        self.model = "codellama:7b-instruct-q2_K"  # Основная модель
-        self.fallback_model = "codellama:7b-instruct-q2_K"  # Fallback модель
+    def __init__(self, base_url: str = None):
+        # Читаем URL из переменной окружения или используем значение по умолчанию
+        self.base_url = base_url or os.getenv("OLLAMA_HOST", "http://localhost:11434")
+        self.model = "codellama:13b-instruct"  # Основная модель с GPU (7.4GB, высокое качество)
+        self.fallback_model = "codellama:7b-instruct-q2_K"  # Fallback модель (меньше памяти, 2.8GB)
+        logger.info(f"OllamaClient инициализирован с base_url: {self.base_url}")
         
     async def initialize(self):
-        """Инициализация клиента"""
-        try:
-            # Проверка доступности Ollama
-            async with httpx.AsyncClient() as client:
-                response = await client.get(f"{self.base_url}/api/tags")
-                if response.status_code == 200:
-                    models = response.json().get("models", [])
-                    available_models = [m["name"] for m in models]
-                    
-                    if self.model not in available_models:
-                        logger.warning(f"Модель {self.model} не найдена. Доступные: {available_models}")
-                        if self.fallback_model in available_models:
-                            self.model = self.fallback_model
-                            logger.info(f"Используется fallback модель: {self.model}")
-                        else:
-                            raise Exception("Ни одна из моделей не доступна")
-                    
-                    logger.info(f"Ollama клиент инициализирован с моделью: {self.model}")
-                else:
-                    raise Exception(f"Ollama недоступен: {response.status_code}")
-                    
-        except Exception as e:
-            logger.error(f"Ошибка инициализации Ollama клиента: {e}")
-            raise
+        """Инициализация клиента (пропускаем проверку)"""
+        logger.info(f"Ollama клиент инициализирован с URL: {self.base_url}")
+        logger.info(f"Модель: {self.model}, Fallback: {self.fallback_model}")
     
     async def generate_response(
         self,
@@ -56,28 +38,29 @@ class OllamaClient:
             prompt = self._build_prompt(query, context)
             logger.info(f"Промпт: {prompt[:100]}...")
             
-            # Запрос к Ollama
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                response = await client.post(
-                    f"{self.base_url}/api/generate",
-                    json={
-                        "model": self.model,
-                        "prompt": prompt,
-                        "stream": False,
-                        "options": {
-                            "num_predict": max_tokens,
-                            "temperature": 0.7,
-                            "top_p": 0.9
-                        }
+            # Запрос к Ollama через requests
+            import requests
+            response = requests.post(
+                f"{self.base_url}/api/generate",
+                json={
+                    "model": self.model,
+                    "prompt": prompt,
+                    "stream": False,
+                    "options": {
+                        "num_predict": max_tokens,
+                        "temperature": 0.7,
+                        "top_p": 0.9
                     }
-                )
-                
-                if response.status_code == 200:
-                    result = response.json()
-                    return result.get("response", "Ошибка генерации ответа")
-                else:
-                    logger.error(f"Ошибка запроса к Ollama: {response.status_code}")
-                    return "Ошибка при генерации ответа"
+                },
+                timeout=60
+            )
+            
+            if response.status_code == 200:
+                result = response.json()
+                return result.get("response", "Ошибка генерации ответа")
+            else:
+                logger.error(f"Ошибка запроса к Ollama: {response.status_code}")
+                return "Ошибка при генерации ответа"
                     
         except Exception as e:
             logger.error(f"Ошибка при генерации ответа: {e}")

@@ -1,27 +1,18 @@
 version: '3.8'
 
 services:
-  ollama:
-    image: ollama/ollama:latest
-    container_name: project-brain-ollama
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama_data:/root/.ollama
-    environment:
-      - OLLAMA_HOST=0.0.0.0
-    restart: unless-stopped
-
+  # Ollama запускается отдельно с GPU через start_ollama_gpu.sh
+  
   chromadb:
-    image: chromadb/chroma:latest
+    image: chromadb/chroma:0.5.23
     container_name: project-brain-chromadb
     ports:
       - "8002:8000"
     volumes:
       - chroma_data:/chroma/chroma
     environment:
-      - CHROMA_SERVER_HOST=0.0.0.0
-      - CHROMA_SERVER_HTTP_PORT=8000
+      - IS_PERSISTENT=TRUE
+      - ANONYMIZED_TELEMETRY=FALSE
     restart: unless-stopped
 
   redis:
@@ -37,16 +28,24 @@ services:
     build: .
     container_name: project-brain-api
     ports:
-      - "8003:8001"
+      - "8003:8003"
     volumes:
       - .:/app
       - /home/sa/projects/staffprobot:/projects/staffprobot:ro
     environment:
-      - OLLAMA_HOST=http://ollama:11434
+      - OLLAMA_HOST=http://192.168.2.107:11434
       - CHROMA_HOST=http://chromadb:8000
       - REDIS_URL=redis://redis:6379
+    command: python -m uvicorn backend.api.main:app --host 0.0.0.0 --port 8003
+    deploy:
+      resources:
+        limits:
+          cpus: 16
+          memory: 16G
+        reservations:
+          cpus: 8
+          memory: 8G
     depends_on:
-      - ollama
       - chromadb
       - redis
     restart: unless-stopped

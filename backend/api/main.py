@@ -1,6 +1,7 @@
 """
 FastAPI приложение для Project Brain
 """
+import logging
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -9,6 +10,13 @@ import os
 from typing import Dict, Any
 
 from .routes import query, index, projects, stats, context_rules
+
+# Настройка логирования
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="Project Brain API",

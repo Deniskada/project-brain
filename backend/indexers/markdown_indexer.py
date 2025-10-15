@@ -65,6 +65,13 @@ class MarkdownIndexer:
                 if len(section['content'].strip()) < 50:  # Пропускаем слишком короткие секции
                     continue
                 
+                # Парсинг start_line, end_line из lines
+                lines_str = section.get('lines', '0-0')
+                try:
+                    start_line, end_line = map(int, lines_str.split('-'))
+                except:
+                    start_line, end_line = 0, 0
+                
                 # Дополнительное разбиение на чанки если секция слишком большая
                 sub_chunks = self._split_into_chunks(section['content'])
                 
@@ -72,7 +79,9 @@ class MarkdownIndexer:
                     chunk = {
                         "content": chunk_content,
                         "file": file_path,
-                        "lines": section.get('lines', ''),
+                        "lines": lines_str,
+                        "start_line": start_line,
+                        "end_line": end_line,
                         "type": "markdown",
                         "section": section.get('header', ''),
                         "chunk_id": hash(f"{file_path}_{i}_{j}")

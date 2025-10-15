@@ -7,7 +7,8 @@ from typing import Optional, Dict, Any, List
 import asyncio
 import logging
 
-from ...rag.simple_engine import SimpleRAGEngine
+from ...rag.engine import RAGEngine  # Полноценный RAG с ChromaDB
+from ...rag.simple_engine import SimpleRAGEngine  # Fallback
 from ...llm.ollama_client import OllamaClient
 
 router = APIRouter()
@@ -26,15 +27,23 @@ class QueryResponse(BaseModel):
     processing_time: float
 
 # Глобальные клиенты (инициализируются при первом запросе)
-rag_engine: Optional[SimpleRAGEngine] = None
+rag_engine: Optional[RAGEngine] = None
 ollama_client: Optional[OllamaClient] = None
 
-async def get_rag_engine() -> SimpleRAGEngine:
-    """Получение RAG engine (ленивая инициализация)"""
+async def get_rag_engine() -> RAGEngine:
+    """Получение RAG engine с ChromaDB (ленивая инициализация)"""
     global rag_engine
     if rag_engine is None:
-        rag_engine = SimpleRAGEngine()
-        await rag_engine.initialize()
+        try:
+            rag_engine = RAGEngine()
+            await rag_engine.initialize()
+            logger.info("✅ RAG Engine с ChromaDB инициализирован")
+        except Exception as e:
+            logger.error(f"❌ Ошибка инициализации RAG Engine: {e}")
+            # Fallback на SimpleRAGEngine
+            rag_engine = SimpleRAGEngine()
+            await rag_engine.initialize()
+            logger.warning("⚠️ Используется SimpleRAGEngine (без ChromaDB)")
     return rag_engine
 
 async def get_ollama_client() -> OllamaClient:
