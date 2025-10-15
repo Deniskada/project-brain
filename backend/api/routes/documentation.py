@@ -8,6 +8,7 @@ import logging
 
 from ...analyzers.project_structure import ProjectStructureAnalyzer
 from ...generators.documentation import DocumentationGenerator
+from ...generators.export import DocumentationExporter
 from ...rag.engine import RAGEngine
 
 router = APIRouter()
@@ -96,6 +97,104 @@ async def generate_documentation(request: GenerateDocsRequest):
         raise
     except Exception as e:
         logger.error(f"Ошибка генерации документации: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Ошибка: {str(e)}")
+
+@router.post("/export/{format}")
+async def export_documentation(
+    format: str,
+    request: GenerateDocsRequest
+):
+    """
+    Экспорт документации в различных форматах
+    
+    Форматы:
+    - html: HTML страница с красивым оформлением
+    - pdf: HTML оптимизированный для печати в PDF (Ctrl+P в браузере)
+    - markdown: Исходный Markdown
+    """
+    try:
+        if format not in ['html', 'pdf', 'markdown']:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Неподдерживаемый формат: {format}. Доступны: html, pdf, markdown"
+            )
+        
+        logger.info(f"Экспорт документации в формате {format} для проекта: {request.project}")
+        
+        # Определение пути к проекту
+        project_paths = {
+            "staffprobot": "/projects/staffprobot"
+        }
+        
+        project_path = project_paths.get(request.project)
+        if not project_path:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Проект {request.project} не найден"
+            )
+        
+        # Анализ проекта
+        analyzer = ProjectStructureAnalyzer(project_path)
+        project_data = await analyzer.analyze()
+        
+        # Генерация документации
+        rag = await get_rag_engine()
+        generator = DocumentationGenerator(rag)
+        
+        # Определяем аудиторию (по умолчанию - разработчики)
+        audiences = request.audiences or ["developers"]
+        audience = audiences[0]  # Берём первую
+        
+        # Генерируем markdown
+        if audience == "developers":
+            markdown_content = await generator.generate_for_developers(project_data)
+        elif audience == "admins":
+            markdown_content = await generator.generate_for_admins(project_data)
+        elif audience == "users":
+            markdown_content = await generator.generate_for_users(project_data)
+        else:
+            markdown_content = await generator.generate_for_developers(project_data)
+        
+        # Экспорт в нужный формат
+        exporter = DocumentationExporter()
+        
+        if format == 'markdown':
+            from fastapi.responses import PlainTextResponse
+            return PlainTextResponse(
+                content=markdown_content,
+                media_type="text/markdown",
+                headers={
+                    "Content-Disposition": f"attachment; filename={request.project}_{audience}_docs.md"
+                }
+            )
+        
+        elif format == 'html':
+            html_content = exporter.to_html(
+                markdown_content,
+                title=f"{request.project.capitalize()} - Документация для {audience}"
+            )
+            from fastapi.responses import HTMLResponse
+            return HTMLResponse(content=html_content)
+        
+        elif format == 'pdf':
+            # Возвращаем HTML оптимизированный для печати
+            # Пользователь может сохранить через Ctrl+P → Save as PDF
+            pdf_html = exporter.to_pdf_html(
+                markdown_content,
+                title=f"{request.project.capitalize()} - Документация для {audience}"
+            )
+            from fastapi.responses import HTMLResponse
+            return HTMLResponse(
+                content=pdf_html,
+                headers={
+                    "Content-Disposition": f"inline; filename={request.project}_{audience}_docs.html"
+                }
+            )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Ошибка экспорта документации: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Ошибка: {str(e)}")
 
 @router.get("/test")

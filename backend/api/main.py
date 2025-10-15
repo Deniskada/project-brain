@@ -9,7 +9,7 @@ from fastapi.responses import HTMLResponse
 import os
 from typing import Dict, Any
 
-from .routes import query, index, projects, stats, context_rules, documentation
+from .routes import query, index, projects, stats, context_rules, documentation, webhook
 
 # Настройка логирования
 logging.basicConfig(
@@ -40,6 +40,7 @@ app.include_router(projects.router, prefix="/api", tags=["projects"])
 app.include_router(stats.router, prefix="/api", tags=["stats"])
 app.include_router(context_rules.router, prefix="/api", tags=["context-rules"])
 app.include_router(documentation.router, prefix="/api/documentation", tags=["documentation"])
+app.include_router(webhook.router, prefix="/api/webhook", tags=["webhook"])
 
 # Статические файлы
 if os.path.exists("frontend"):

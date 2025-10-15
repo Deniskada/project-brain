@@ -79,12 +79,16 @@ async def index_project_background(project_name: str):
                 # Загрузка чанков в ChromaDB
                 for chunk in chunks:
                     try:
+                        # Классификация типа документа
+                        doc_type = python_indexer._classify_doc_type(relative_path) if file_type == 'python' else 'documentation'
+                        
                         await rag.store_document(
                             project=project_name,
                             content=chunk['content'],
                             metadata={
                                 'file': relative_path,
                                 'type': chunk['type'],
+                                'doc_type': doc_type,
                                 'start_line': chunk.get('start_line', 0),
                                 'end_line': chunk.get('end_line', 0),
                                 'lines': chunk.get('lines', f"{chunk.get('start_line', 0)}-{chunk.get('end_line', 0)}"),

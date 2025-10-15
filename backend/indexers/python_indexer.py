@@ -15,6 +15,26 @@ class PythonIndexer:
         self.chunk_size = 1000  # Размер чанка в символах
         self.overlap = 200      # Перекрытие между чанками
     
+    def _classify_doc_type(self, file_path: str) -> str:
+        """Классификация типа документа по пути"""
+        file_path_lower = file_path.lower()
+        
+        if 'routes' in file_path_lower or 'routers' in file_path_lower:
+            return 'route'
+        elif 'api' in file_path_lower and 'domain' not in file_path_lower:
+            return 'api'
+        elif 'models' in file_path_lower or 'entities' in file_path_lower:
+            return 'model'
+        elif 'services' in file_path_lower:
+            return 'service'
+        elif 'handlers' in file_path_lower:
+            return 'handler'
+        elif 'forms' in file_path_lower:
+            return 'form'
+        elif 'schemas' in file_path_lower:
+            return 'schema'
+        return 'other'
+    
     async def find_files(
         self, 
         project_path: str, 

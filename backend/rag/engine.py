@@ -49,6 +49,82 @@ class RAGEngine:
             logger.error(f"❌ Ошибка инициализации RAG Engine: {e}", exc_info=True)
             raise
     
+    def _detect_query_intent(self, query: str) -> Dict[str, Any]:
+        """
+        Определение намерения пользователя для точного поиска
+        """
+        query_lower = query.lower()
+        intent = {
+            'type': 'general',
+            'preferred_doc_types': [],
+            'keywords': []
+        }
+        
+        # Вопросы "как сделать X" - пользователь хочет узнать процесс
+        how_keywords = ['как', 'how', 'что нужно', 'каким образом', 'способ', 'метод', 
+                        'процесс', 'инструкция', 'шаги']
+        if any(kw in query_lower for kw in how_keywords):
+            intent['type'] = 'how_to'
+            intent['preferred_doc_types'] = ['route', 'handler', 'service']
+            
+            # Если спрашивают про создание/изменение - точно роуты
+            action_keywords = ['создать', 'добавить', 'изменить', 'удалить', 'обновить',
+                              'create', 'add', 'update', 'delete', 'modify']
+            if any(kw in query_lower for kw in action_keywords):
+                intent['preferred_doc_types'] = ['route', 'handler', 'api']
+        
+        # Вопросы про структуру данных - модели БД
+        structure_keywords = ['поля', 'модель', 'таблица', 'schema', 'fields', 'структура',
+                             'атрибуты', 'колонки', 'столбцы']
+        if any(kw in query_lower for kw in structure_keywords):
+            intent['type'] = 'structure'
+            intent['preferred_doc_types'] = ['model', 'schema']
+        
+        # Вопросы про API
+        api_keywords = ['api', 'endpoint', 'роут', 'route', 'запрос', 'request']
+        if any(kw in query_lower for kw in api_keywords):
+            intent['type'] = 'api'
+            intent['preferred_doc_types'] = ['route', 'api']
+        
+        # Вопросы про бизнес-логику
+        logic_keywords = ['логика', 'обработка', 'алгоритм', 'бизнес', 'правила']
+        if any(kw in query_lower for kw in logic_keywords):
+            intent['type'] = 'logic'
+            intent['preferred_doc_types'] = ['service', 'handler']
+        
+        return intent
+    
+    def _rerank_results(
+        self, 
+        results: List[Dict[str, Any]], 
+        intent: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
+        """
+        Переранжирование результатов на основе намерения пользователя
+        """
+        preferred_types = intent.get('preferred_doc_types', [])
+        
+        if not preferred_types:
+            return results
+        
+        # Присваиваем бонусы релевантности
+        for result in results:
+            doc_type = result.get('doc_type', 'other')
+            
+            # Сильный буст для точного соответствия типа
+            if doc_type in preferred_types:
+                boost_index = preferred_types.index(doc_type)
+                # Первый в списке получает больший буст
+                boost = 0.3 - (boost_index * 0.1)
+                result['score'] = min(1.0, result['score'] + boost)
+            
+            # Небольшой штраф для несоответствующих типов
+            elif len(preferred_types) > 0 and doc_type == 'model' and 'route' in preferred_types:
+                result['score'] *= 0.7
+        
+        # Сортируем по новому score
+        return sorted(results, key=lambda x: x['score'], reverse=True)
+    
     async def retrieve_context(
         self, 
         query: str, 
@@ -56,33 +132,88 @@ class RAGEngine:
         top_k: int = 5
     ) -> List[Dict[str, Any]]:
         """
-        Поиск релевантного контекста для запроса
+        Поиск релевантного контекста для запроса с умной приоритизацией
         """
         try:
+            # Определение намерения пользователя
+            intent = self._detect_query_intent(query)
+            logger.info(f"Query intent: {intent['type']}, preferred types: {intent['preferred_doc_types']}")
+            
             # Создание эмбеддинга запроса
             query_embedding = self.embedding_model.encode(query).tolist()
             
-            # Поиск в ChromaDB
-            where_clause = {"project": project} if project else None
-            results = self.collection.query(
-                query_embeddings=[query_embedding],
-                n_results=top_k,
-                where=where_clause
-            )
-            
-            # Форматирование результатов
+            # Двухэтапный поиск для "how_to" запросов
             context_docs = []
-            if results['documents'] and results['documents'][0]:
-                for i, doc in enumerate(results['documents'][0]):
-                    context_docs.append({
-                        "content": doc,
-                        "file": results['metadatas'][0][i].get('file', ''),
-                        "lines": results['metadatas'][0][i].get('lines', ''),
-                        "type": results['metadatas'][0][i].get('type', ''),
-                        "score": 1 - results['distances'][0][i] if results['distances'] else 0.0
-                    })
             
-            return context_docs
+            if intent['type'] == 'how_to' and intent['preferred_doc_types']:
+                # Этап 1: Ищем в предпочтительных типах документов
+                try:
+                    where_clause = {
+                        "$and": [
+                            {"project": project},
+                            {"$or": [{"doc_type": dt} for dt in intent['preferred_doc_types']]}
+                        ]
+                    }
+                    
+                    results_priority = self.collection.query(
+                        query_embeddings=[query_embedding],
+                        n_results=top_k,
+                        where=where_clause
+                    )
+                    
+                    # Форматирование приоритетных результатов
+                    if results_priority['documents'] and results_priority['documents'][0]:
+                        for i, doc in enumerate(results_priority['documents'][0]):
+                            context_docs.append({
+                                "content": doc,
+                                "file": results_priority['metadatas'][0][i].get('file', ''),
+                                "lines": results_priority['metadatas'][0][i].get('lines', ''),
+                                "type": results_priority['metadatas'][0][i].get('type', ''),
+                                "doc_type": results_priority['metadatas'][0][i].get('doc_type', 'other'),
+                                "score": 1 - results_priority['distances'][0][i] if results_priority['distances'] else 0.0
+                            })
+                    
+                    logger.info(f"Found {len(context_docs)} results in priority types")
+                
+                except Exception as e:
+                    logger.warning(f"Priority search failed: {e}, falling back to general search")
+            
+            # Если не нашли достаточно или это не how_to - общий поиск
+            if len(context_docs) < top_k:
+                remaining = top_k - len(context_docs)
+                where_clause = {"project": project} if project else None
+                
+                results = self.collection.query(
+                    query_embeddings=[query_embedding],
+                    n_results=top_k * 2,  # Берём больше для переранжирования
+                    where=where_clause
+                )
+                
+                # Форматирование результатов
+                if results['documents'] and results['documents'][0]:
+                    for i, doc in enumerate(results['documents'][0]):
+                        doc_data = {
+                            "content": doc,
+                            "file": results['metadatas'][0][i].get('file', ''),
+                            "lines": results['metadatas'][0][i].get('lines', ''),
+                            "type": results['metadatas'][0][i].get('type', ''),
+                            "doc_type": results['metadatas'][0][i].get('doc_type', 'other'),
+                            "score": 1 - results['distances'][0][i] if results['distances'] else 0.0
+                        }
+                        
+                        # Избегаем дублей
+                        if not any(d['file'] == doc_data['file'] and d['lines'] == doc_data['lines'] 
+                                  for d in context_docs):
+                            context_docs.append(doc_data)
+            
+            # Переранжирование на основе намерения
+            context_docs = self._rerank_results(context_docs, intent)
+            
+            # Возвращаем top_k лучших
+            final_results = context_docs[:top_k]
+            logger.info(f"Returning {len(final_results)} results after reranking")
+            
+            return final_results
             
         except Exception as e:
             logger.error(f"Ошибка при поиске контекста: {e}")
