@@ -20,10 +20,9 @@ class RAGEngine:
         """Инициализация RAG engine"""
         try:
             # Инициализация ChromaDB
-            self.chroma_client = chromadb.AsyncClient(
+            self.chroma_client = chromadb.HttpClient(
                 host="chromadb",
-                port=8000,
-                settings=Settings(allow_reset=True)
+                port=8000
             )
             
             # Инициализация модели эмбеддингов
@@ -31,10 +30,10 @@ class RAGEngine:
             
             # Получение или создание коллекции
             try:
-                self.collection = await self.chroma_client.get_collection("project_brain")
+                self.collection = self.chroma_client.get_collection("project_brain")
             except:
-                self.collection = await self.chroma_client.create_collection(
-                    "project_brain",
+                self.collection = self.chroma_client.create_collection(
+                    name="project_brain",
                     metadata={"description": "Project Brain knowledge base"}
                 )
             
@@ -59,7 +58,7 @@ class RAGEngine:
             
             # Поиск в ChromaDB
             where_clause = {"project": project} if project else None
-            results = await self.collection.query(
+            results = self.collection.query(
                 query_embeddings=[query_embedding],
                 n_results=top_k,
                 where=where_clause
@@ -116,7 +115,7 @@ class RAGEngine:
             query = " ".join(query_parts)
             
             # Поиск правил в базе знаний
-            results = await self.collection.query(
+            results = self.collection.query(
                 query_texts=[query],
                 n_results=10,
                 where={"type": "rule"}
@@ -146,7 +145,7 @@ class RAGEngine:
             embedding = self.embedding_model.encode(content).tolist()
             
             # Сохранение в ChromaDB
-            await self.collection.add(
+            self.collection.add(
                 embeddings=[embedding],
                 documents=[content],
                 metadatas=[metadata],

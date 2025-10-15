@@ -1,23 +1,23 @@
-# LLM и RAG
-langchain==0.1.0
+# Основные зависимости
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+pydantic>=2.5.3,<3.0.0
+python-multipart==0.0.6
+jinja2==3.1.2
+
+# RAG и эмбеддинги
+sentence-transformers==2.7.0
+huggingface-hub==0.20.3
 chromadb==0.4.18
-sentence-transformers==2.2.2
-ollama-python==0.1.5
+numpy<2.0.0
+
+# LLM
+ollama-python==0.1.2
 
 # Индексация
 gitpython==3.1.40
 pygments==2.17.2
 
-# API
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
+# Дополнительные
 websockets==12.0
 redis==4.6.0
-
-# Telegram (для фазы 5)
-python-telegram-bot==20.7
-
-# Дополнительные зависимости
-pydantic==2.5.0
-python-multipart==0.0.6
-jinja2==3.1.2

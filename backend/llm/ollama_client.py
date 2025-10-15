@@ -11,8 +11,8 @@ logger = logging.getLogger(__name__)
 class OllamaClient:
     def __init__(self, base_url: str = "http://ollama:11434"):
         self.base_url = base_url
-        self.model = "codellama:34b-instruct"  # Основная модель
-        self.fallback_model = "codellama:13b-instruct"  # Fallback модель
+        self.model = "codellama:7b-instruct-q2_K"  # Основная модель
+        self.fallback_model = "codellama:7b-instruct-q2_K"  # Fallback модель
         
     async def initialize(self):
         """Инициализация клиента"""

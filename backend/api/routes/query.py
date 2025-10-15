@@ -7,7 +7,7 @@ from typing import Optional, Dict, Any, List
 import asyncio
 import logging
 
-from ...rag.engine import RAGEngine
+from ...rag.simple_engine import SimpleRAGEngine
 from ...llm.ollama_client import OllamaClient
 
 router = APIRouter()
@@ -26,14 +26,14 @@ class QueryResponse(BaseModel):
     processing_time: float
 
 # Глобальные клиенты (инициализируются при первом запросе)
-rag_engine: Optional[RAGEngine] = None
+rag_engine: Optional[SimpleRAGEngine] = None
 ollama_client: Optional[OllamaClient] = None
 
-async def get_rag_engine() -> RAGEngine:
+async def get_rag_engine() -> SimpleRAGEngine:
     """Получение RAG engine (ленивая инициализация)"""
     global rag_engine
     if rag_engine is None:
-        rag_engine = RAGEngine()
+        rag_engine = SimpleRAGEngine()
         await rag_engine.initialize()
     return rag_engine
 
@@ -48,7 +48,7 @@ async def get_ollama_client() -> OllamaClient:
 @router.post("/query", response_model=QueryResponse)
 async def query_ai(
     request: QueryRequest,
-    rag: RAGEngine = Depends(get_rag_engine),
+    rag: SimpleRAGEngine = Depends(get_rag_engine),
     ollama: OllamaClient = Depends(get_ollama_client)
 ):
     """
@@ -59,36 +59,15 @@ async def query_ai(
     
     try:
         # Получение релевантного контекста
-        context_docs = await rag.retrieve_context(
+        result = await rag.query(
             query=request.query,
-            project=request.project,
-            top_k=5
+            project=request.project
         )
         
-        # Генерация ответа
-        answer = await ollama.generate_response(
-            query=request.query,
-            context=context_docs,
-            max_tokens=request.max_tokens
-        )
-        
-        # Извлечение источников
-        sources = []
-        for doc in context_docs:
-            sources.append({
-                "file": doc.get("file", ""),
-                "lines": doc.get("lines", ""),
-                "content": doc.get("content", "")[:200] + "...",
-                "score": doc.get("score", 0.0)
-            })
-        
-        # Получение релевантных правил (если есть контекст)
-        relevant_rules = []
-        if request.context:
-            relevant_rules = await rag.get_relevant_rules(
-                file_path=request.context.get("file", ""),
-                role=request.context.get("role", "")
-            )
+        # Результат уже готов из RAG
+        answer = result.get("answer", "Ошибка генерации ответа")
+        relevant_rules = result.get("relevant_rules", [])
+        sources = result.get("sources", [])
         
         processing_time = time.time() - start_time
         

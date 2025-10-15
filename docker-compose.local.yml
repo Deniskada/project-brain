@@ -9,21 +9,14 @@ services:
     volumes:
       - ollama_data:/root/.ollama
     environment:
-      - NVIDIA_VISIBLE_DEVICES=all
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
+      - OLLAMA_HOST=0.0.0.0
     restart: unless-stopped
 
   chromadb:
     image: chromadb/chroma:latest
     container_name: project-brain-chromadb
     ports:
-      - "8000:8000"
+      - "8002:8000"
     volumes:
       - chroma_data:/chroma/chroma
     environment:
@@ -35,7 +28,7 @@ services:
     image: redis:7-alpine
     container_name: project-brain-redis
     ports:
-      - "6379:6379"
+      - "6380:6379"
     volumes:
       - redis_data:/data
     restart: unless-stopped
@@ -44,7 +37,7 @@ services:
     build: .
     container_name: project-brain-api
     ports:
-      - "8001:8001"
+      - "8003:8001"
     volumes:
       - .:/app
       - /home/sa/projects/staffprobot:/projects/staffprobot:ro
