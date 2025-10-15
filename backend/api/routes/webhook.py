@@ -36,6 +36,7 @@ async def process_github_push(payload: Dict[str, Any]):
             from ...indexers.python_indexer import PythonIndexer
             from ...indexers.markdown_indexer import MarkdownIndexer
             from ...rag.engine import RAGEngine
+            import subprocess
             
             # Определяем проект по имени репозитория
             project_map = {
@@ -46,6 +47,59 @@ async def process_github_push(payload: Dict[str, Any]):
             project_name = project_map.get(repo_name.lower())
             
             if project_name:
+                # Получаем путь к проекту
+                from ...indexers.simple_project_indexer import SimpleProjectIndexer
+                indexer = SimpleProjectIndexer()
+                project_config = indexer.get_project_config(project_name)
+                
+                if not project_config:
+                    logger.error(f"❌ Конфигурация проекта {project_name} не найдена")
+                    return
+                
+                project_path = project_config.get('path')
+                git_url = project_config.get('git_url')
+                
+                # ШАГ 1: Обновление кода из git
+                try:
+                    logger.info(f"📥 Обновление кода: git pull в {project_path}")
+                    
+                    # git fetch origin
+                    result = subprocess.run(
+                        ['git', 'fetch', 'origin'],
+                        cwd=project_path,
+                        capture_output=True,
+                        text=True,
+                        timeout=30
+                    )
+                    
+                    if result.returncode != 0:
+                        logger.error(f"❌ git fetch failed: {result.stderr}")
+                        return
+                    
+                    # git pull origin main/master
+                    branch = 'main' if 'main' in ref else 'master'
+                    result = subprocess.run(
+                        ['git', 'pull', 'origin', branch],
+                        cwd=project_path,
+                        capture_output=True,
+                        text=True,
+                        timeout=60
+                    )
+                    
+                    if result.returncode != 0:
+                        logger.error(f"❌ git pull failed: {result.stderr}")
+                        return
+                    
+                    logger.info(f"✅ Код обновлён: {result.stdout.strip()}")
+                    
+                except subprocess.TimeoutExpired:
+                    logger.error("❌ Git операция timeout")
+                    return
+                except Exception as e:
+                    logger.error(f"❌ Ошибка git pull: {e}")
+                    return
+                
+                # ШАГ 2: Переиндексация
                 logger.info(f"📚 Начинаем индексацию проекта: {project_name}")
                 
                 # Инициализация
