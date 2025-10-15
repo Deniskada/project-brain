@@ -71,6 +71,15 @@ async def chat():
     except FileNotFoundError:
         return HTMLResponse(content="<h1>Чат не найден</h1>")
 
+@app.get("/docs", response_class=HTMLResponse)
+async def docs():
+    """Интерфейс документации"""
+    try:
+        with open("frontend/docs.html", "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read())
+    except FileNotFoundError:
+        return HTMLResponse(content="<h1>Документация не найдена</h1>")
+
 @app.get("/health")
 async def health_check():
     """Проверка здоровья сервиса"""
