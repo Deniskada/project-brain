@@ -40,7 +40,7 @@ if os.path.exists("frontend"):
 async def root():
     """Главная страница с чат-интерфейсом"""
     try:
-        with open("frontend/index.html", "r", encoding="utf-8") as f:
+        with open("frontend/chat.html", "r", encoding="utf-8") as f:
             return HTMLResponse(content=f.read())
     except FileNotFoundError:
         return HTMLResponse(content="""
@@ -52,6 +52,15 @@ async def root():
             </body>
         </html>
         """)
+
+@app.get("/chat", response_class=HTMLResponse)
+async def chat():
+    """Чат-интерфейс"""
+    try:
+        with open("frontend/chat.html", "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read())
+    except FileNotFoundError:
+        return HTMLResponse(content="<h1>Чат не найден</h1>")
 
 @app.get("/health")
 async def health_check():
