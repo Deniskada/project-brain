@@ -54,9 +54,9 @@ class ChromaClient:
             ids = []
             
             for chunk in chunks:
-                # Здесь должен быть вызов модели эмбеддингов
-                # Пока используем заглушку
-                embedding = [0.0] * 384  # Размер эмбеддинга для all-MiniLM-L6-v2
+            # TODO: Здесь должен быть вызов модели эмбеддингов
+            # Пока используем заглушку - в реальности нужно использовать sentence-transformers
+            embedding = [0.0] * 384  # Размер эмбеддинга для all-MiniLM-L6-v2
                 
                 embeddings.append(embedding)
                 documents.append(chunk['content'])

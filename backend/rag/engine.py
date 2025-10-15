@@ -58,10 +58,11 @@ class RAGEngine:
             query_embedding = self.embedding_model.encode(query).tolist()
             
             # Поиск в ChromaDB
+            where_clause = {"project": project} if project else None
             results = await self.collection.query(
                 query_embeddings=[query_embedding],
                 n_results=top_k,
-                where={"project": project} if project else None
+                where=where_clause
             )
             
             # Форматирование результатов
