@@ -211,12 +211,14 @@ async def github_webhook(
         logger.info(f"📥 GitHub webhook: event={x_github_event}, repo={payload.get('repository', {}).get('name', 'unknown')}")
         
         # Проверка подписи (если настроен секрет)
-        # В продакшене обязательно включите это!
-        # import os
-        # webhook_secret = os.getenv('GITHUB_WEBHOOK_SECRET')
-        # if webhook_secret:
-        #     if not verify_github_signature(body, x_hub_signature_256, webhook_secret):
-        #         raise HTTPException(status_code=401, detail="Invalid signature")
+        import os
+        webhook_secret = os.getenv('GITHUB_WEBHOOK_SECRET')
+        if webhook_secret:
+            if not verify_github_signature(body, x_hub_signature_256, webhook_secret):
+                logger.warning("❌ Invalid webhook signature")
+                raise HTTPException(status_code=401, detail="Invalid signature")
+        else:
+            logger.warning("⚠️ GITHUB_WEBHOOK_SECRET не установлен - webhook НЕ защищён!")
         
         # Обрабатываем только push события
         if x_github_event == 'push':

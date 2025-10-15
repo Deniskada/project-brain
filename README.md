@@ -23,6 +23,10 @@
 # Клонирование и переход в директорию
 cd /home/sa/projects/project-brain
 
+# Создать .env файл из шаблона
+cp env.example .env
+# Отредактировать .env и установить свои значения (особенно GITHUB_WEBHOOK_SECRET)
+
 # Запуск всех сервисов
 docker compose -f docker-compose.local.yml up -d
 

@@ -66,29 +66,40 @@ GitHub → Repository → Settings → Webhooks → Add webhook
 |------|----------|
 | **Payload URL** | `https://your-domain.com/api/webhook/github` |
 | **Content type** | `application/json` |
-| **Secret** | `your_secret_key` (опционально, но рекомендуется) |
+| **Secret** | `your_secret_key` (опционально, но рекомендуется) | 63f4945d921d599f27ae4fdf5bada3f1
 | **Events** | Just the push event |
 | **Active** | ✅ Enabled |
 
-### 3. Добавить секрет в `.env` (если используется):
+### 3. Создать `.env` файл с секретом:
 
 ```bash
+# Копируем шаблон
+cp env.example .env
+
+# Генерируем уникальный секрет
+openssl rand -hex 32
+
+# Добавляем в .env
+echo "GITHUB_WEBHOOK_SECRET=<ваш_сгенерированный_секрет>" >> .env
+```
+
+Или вручную отредактируйте `.env`:
+```bash
 # В файле .env
-GITHUB_WEBHOOK_SECRET=your_secret_key
+GITHUB_WEBHOOK_SECRET=63f4945d921d599f27ae4fdf5bada3f1
 ```
 
-### 4. Включить проверку подписи (опционально):
+### 4. Перезапустить контейнеры:
 
-Раскомментируйте в `backend/api/routes/webhook.py`:
+```bash
+# Чтобы подхватить новые переменные окружения
+docker compose -f docker-compose.local.yml restart api
 
-```python
-# Проверка подписи (если настроен секрет)
-import os
-webhook_secret = os.getenv('GITHUB_WEBHOOK_SECRET')
-if webhook_secret:
-    if not verify_github_signature(body, x_hub_signature_256, webhook_secret):
-        raise HTTPException(status_code=401, detail="Invalid signature")
+# Проверить, что секрет загрузился
+docker compose -f docker-compose.local.yml exec api printenv | grep GITHUB_WEBHOOK_SECRET
 ```
+
+**Примечание:** Проверка подписи включена по умолчанию в `backend/api/routes/webhook.py`. Если секрет не задан в `.env`, проверка пропускается.
 
 ## 🧪 Тестирование
 

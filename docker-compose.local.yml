@@ -28,14 +28,18 @@ services:
     build: .
     container_name: project-brain-api
     ports:
-      - "8003:8003"
+      - "${API_PORT:-8003}:8003"
     volumes:
       - .:/app
       - /home/sa/projects/staffprobot:/projects/staffprobot:ro
     environment:
-      - OLLAMA_HOST=http://192.168.2.107:11434
-      - CHROMA_HOST=http://chromadb:8000
-      - REDIS_URL=redis://redis:6379
+      - OLLAMA_HOST=${OLLAMA_HOST:-http://192.168.2.107:11434}
+      - CHROMA_HOST=${CHROMA_HOST:-http://chromadb:8000}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
+      - GITHUB_WEBHOOK_SECRET=${GITHUB_WEBHOOK_SECRET}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    env_file:
+      - .env
     command: python -m uvicorn backend.api.main:app --host 0.0.0.0 --port 8003
     deploy:
       resources:
