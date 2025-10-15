@@ -16,3 +16,16 @@ projects:
       - "**/scripts/**"
     rules_path: "doc/conventions.mdc"
     description: "StaffProBot - только основной код (apps, core, domain, doc)"
+  
+  - name: project-brain
+    path: /app
+    git_url: https://github.com/your-username/project-brain
+    index_patterns:
+      - "**/*.py"
+      - "**/*.md"
+    exclude_patterns:
+      - "**/venv/**"
+      - "**/__pycache__/**"
+      - "**/.git/**"
+      - "**/tests/**"
+    description: "Project Brain - система управления знаниями с RAG"
