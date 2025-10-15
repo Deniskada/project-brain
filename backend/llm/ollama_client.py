@@ -13,8 +13,8 @@ class OllamaClient:
     def __init__(self, base_url: str = None):
         # Читаем URL из переменной окружения или используем значение по умолчанию
         self.base_url = base_url or os.getenv("OLLAMA_HOST", "http://localhost:11434")
-        self.model = "codellama:13b-instruct"  # Основная модель с GPU (7.4GB, высокое качество)
-        self.fallback_model = "codellama:7b-instruct-q2_K"  # Fallback модель (меньше памяти, 2.8GB)
+        self.model = "qwen2.5:14b-instruct"  # Qwen 2.5 14B - лучшая для русского! (8.9GB)
+        self.fallback_model = "codellama:13b-instruct"  # Fallback модель (7.4GB)
         logger.info(f"OllamaClient инициализирован с base_url: {self.base_url}")
         
     async def initialize(self):
