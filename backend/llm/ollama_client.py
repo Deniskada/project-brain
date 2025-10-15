@@ -50,8 +50,11 @@ class OllamaClient:
         Генерация ответа на основе запроса и контекста
         """
         try:
+            logger.info(f"Генерация ответа с моделью: {self.model}")
+            
             # Формирование промпта
             prompt = self._build_prompt(query, context)
+            logger.info(f"Промпт: {prompt[:100]}...")
             
             # Запрос к Ollama
             async with httpx.AsyncClient(timeout=60.0) as client:

@@ -51,9 +51,9 @@ class SimpleRAGEngine:
             }
             
         except Exception as e:
-            logger.error(f"Ошибка при обработке запроса: {e}")
+            logger.error(f"Ошибка при обработке запроса: {e}", exc_info=True)
             return {
-                "answer": f"Произошла ошибка при обработке запроса: {e}",
+                "answer": f"Произошла ошибка при обработке запроса: {str(e)}",
                 "sources": [],
                 "relevant_rules": []
             }
