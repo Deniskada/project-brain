@@ -19,7 +19,7 @@ projects:
   
   - name: project-brain
     path: /app
-    git_url: https://github.com/your-username/project-brain
+    git_url: https://github.com/Deniskada/project-brain
     index_patterns:
       - "**/*.py"
       - "**/*.md"
