@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+*.egg-info/
+dist/
+build/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Project specific
+.env
+.env.local
+*.log
+
+# Docker
+docker-compose.override.yml
+
+# ChromaDB data
+chroma_data/
+*.sqlite3
+
+# Временные файлы
+*.tmp
+.DS_Store
+
