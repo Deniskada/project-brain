@@ -36,17 +36,28 @@ class RAGEngine:
             logger.info("Загрузка модели эмбеддингов...")
             self.embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
             
-            # Получение или создание коллекции
-            logger.info("Получение коллекции project_brain...")
-            self.collection = self.chroma_client.get_or_create_collection(
-                name="project_brain",
-                metadata={"description": "Project Brain knowledge base"}
-            )
+            # НЕ создаём коллекцию здесь - будем создавать для каждого проекта отдельно
+            self.collection = None  # Будет установлена через get_collection()
             
-            logger.info(f"✅ RAG Engine инициализирован успешно. Коллекция: {self.collection.name}")
+            logger.info(f"✅ RAG Engine инициализирован успешно (без коллекции)")
             
         except Exception as e:
             logger.error(f"❌ Ошибка инициализации RAG Engine: {e}", exc_info=True)
+            raise
+    
+    def get_collection(self, project: str):
+        """Получение или создание коллекции для конкретного проекта"""
+        collection_name = f"kb_{project.replace('-', '_')}"  # kb_staffprobot, kb_project_brain
+        
+        try:
+            collection = self.chroma_client.get_or_create_collection(
+                name=collection_name,
+                metadata={"description": f"Knowledge base for {project}"}
+            )
+            logger.info(f"📚 Использую коллекцию: {collection_name}")
+            return collection
+        except Exception as e:
+            logger.error(f"❌ Ошибка получения коллекции {collection_name}: {e}")
             raise
     
     def _detect_query_intent(self, query: str) -> Dict[str, Any]:
@@ -59,6 +70,13 @@ class RAGEngine:
             'preferred_doc_types': [],
             'keywords': []
         }
+        
+        # Общие вопросы о проекте - README, документация
+        overview_keywords = ['расскажи', 'что это', 'о системе', 'о проекте', 'цели', 'задачи',
+                            'назначение', 'для чего', 'зачем', 'описание', 'overview']
+        if any(kw in query_lower for kw in overview_keywords):
+            intent['type'] = 'overview'
+            intent['preferred_doc_types'] = ['documentation']  # README, описания
         
         # Вопросы "как сделать X" - пользователь хочет узнать процесс
         how_keywords = ['как', 'how', 'что нужно', 'каким образом', 'способ', 'метод', 
@@ -135,6 +153,9 @@ class RAGEngine:
         Поиск релевантного контекста для запроса с умной приоритизацией
         """
         try:
+            # Получаем коллекцию для конкретного проекта
+            collection = self.get_collection(project)
+            
             # Определение намерения пользователя
             intent = self._detect_query_intent(query)
             logger.info(f"Query intent: {intent['type']}, preferred types: {intent['preferred_doc_types']}")
@@ -142,20 +163,17 @@ class RAGEngine:
             # Создание эмбеддинга запроса
             query_embedding = self.embedding_model.encode(query).tolist()
             
-            # Двухэтапный поиск для "how_to" запросов
+            # Двухэтапный поиск для "how_to" и "overview" запросов
             context_docs = []
             
-            if intent['type'] == 'how_to' and intent['preferred_doc_types']:
+            if intent['type'] in ['how_to', 'overview'] and intent['preferred_doc_types']:
                 # Этап 1: Ищем в предпочтительных типах документов
                 try:
                     where_clause = {
-                        "$and": [
-                            {"project": project},
-                            {"$or": [{"doc_type": dt} for dt in intent['preferred_doc_types']]}
-                        ]
+                        "$or": [{"doc_type": dt} for dt in intent['preferred_doc_types']]
                     }
                     
-                    results_priority = self.collection.query(
+                    results_priority = collection.query(
                         query_embeddings=[query_embedding],
                         n_results=top_k,
                         where=where_clause
@@ -178,15 +196,14 @@ class RAGEngine:
                 except Exception as e:
                     logger.warning(f"Priority search failed: {e}, falling back to general search")
             
-            # Если не нашли достаточно или это не how_to - общий поиск
+            # Если не нашли достаточно - общий поиск
             if len(context_docs) < top_k:
                 remaining = top_k - len(context_docs)
-                where_clause = {"project": project} if project else None
                 
-                results = self.collection.query(
+                # Общий поиск БЕЗ where (коллекция уже для конкретного проекта)
+                results = collection.query(
                     query_embeddings=[query_embedding],
-                    n_results=top_k * 2,  # Берём больше для переранжирования
-                    where=where_clause
+                    n_results=top_k * 2  # Берём больше для переранжирования
                 )
                 
                 # Форматирование результатов
@@ -223,12 +240,16 @@ class RAGEngine:
         self,
         file_path: str = "",
         role: str = "",
-        module: str = ""
+        module: str = "",
+        project: str = "staffprobot"
     ) -> List[str]:
         """
         Получение релевантных правил для контекста
         """
         try:
+            # Получаем коллекцию для конкретного проекта
+            collection = self.get_collection(project)
+            
             # Построение запроса для поиска правил
             query_parts = []
             
@@ -252,7 +273,7 @@ class RAGEngine:
             query = " ".join(query_parts)
             
             # Поиск правил в базе знаний
-            results = self.collection.query(
+            results = collection.query(
                 query_texts=[query],
                 n_results=10,
                 where={"type": "rule"}
@@ -277,11 +298,10 @@ class RAGEngine:
         metadata: Dict[str, Any]
     ):
         """Сохранение документа в векторную БД"""
-        if not self.collection:
-            logger.warning("ChromaDB недоступен, пропускаем сохранение документа")
-            return
-            
         try:
+            # Получаем коллекцию для конкретного проекта
+            collection = self.get_collection(project)
+            
             # Создание эмбеддинга
             embedding = self.embedding_model.encode(content).tolist()
             
@@ -291,7 +311,7 @@ class RAGEngine:
             
             # Сохранение в ChromaDB (с обработкой дублей)
             try:
-                self.collection.add(
+                collection.add(
                     embeddings=[embedding],
                     documents=[content],
                     metadatas=[metadata],
@@ -330,11 +350,12 @@ class RAGEngine:
             ollama = OllamaClient()
             await ollama.initialize()
             
-            # Генерация ответа с контекстом
+            # Генерация ответа с контекстом (передаём имя проекта!)
             answer = await ollama.generate_response(
                 query=query,
                 context=context_docs,
-                max_tokens=1000
+                max_tokens=1000,
+                project_name=project
             )
             
             # Форматирование источников
@@ -350,7 +371,8 @@ class RAGEngine:
             # Получение релевантных правил
             relevant_rules = await self.get_relevant_rules(
                 file_path="",
-                role=""
+                role="",
+                project=project
             )
             
             return {
