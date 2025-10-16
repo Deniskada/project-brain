@@ -196,10 +196,23 @@ ollama show qwen2.5:14b-instruct
 
 ## 📚 Документация
 
-- **[IMPROVEMENTS_LOG.md](IMPROVEMENTS_LOG.md)** - детальный лог всех улучшений
+### Основные файлы (корень)
 - **[README.md](README.md)** - основная документация проекта
 - **[QUICKSTART.md](QUICKSTART.md)** - быстрый старт
-- **[doc/project-status.md](doc/project-status.md)** - прогресс разработки
+- **[FINAL_STATUS.md](FINAL_STATUS.md)** - текущий статус (этот файл)
+- **[IMPROVEMENTS_LOG.md](IMPROVEMENTS_LOG.md)** - детальный лог улучшений
+- **[WEBHOOK_SETUP.md](WEBHOOK_SETUP.md)** - настройка GitHub webhook
+
+### Дополнительная документация (docs/)
+- **[docs/IMPROVEMENT_PLAN.md](docs/IMPROVEMENT_PLAN.md)** - план улучшений RAG
+- **[docs/IMPROVEMENTS_SUMMARY.md](docs/IMPROVEMENTS_SUMMARY.md)** - сводка улучшений
+- **[docs/USAGE.md](docs/USAGE.md)** - примеры использования
+- **[docs/USAGE_ANALYSIS.md](docs/USAGE_ANALYSIS.md)** - анализ использования
+- **[docs/DOCUMENTATION_GUIDE.md](docs/DOCUMENTATION_GUIDE.md)** - руководство по документации
+
+### Разработка
+- **[doc/project-status.md](doc/project-status.md)** - прогресс разработки по фазам
+- **[.cursorrules](.cursorrules)** - правила разработки для Cursor AI
 
 ---
 
