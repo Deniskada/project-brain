@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Architecture Visualizer</title>
+  <style>
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    .app { display: grid; grid-template-columns: 280px 1fr 360px; grid-template-rows: 56px 1fr; height: 100vh; }
+    header { grid-column: 1 / 4; display: flex; align-items: center; padding: 10px 16px; background: #111827; color: #fff; }
+    header h1 { font-size: 18px; margin: 0; }
+    .sidebar { border-right: 1px solid #e5e7eb; padding: 12px; overflow: auto; }
+    .content { position: relative; }
+    .panel { border-left: 1px solid #e5e7eb; padding: 12px; overflow: auto; }
+    .section { margin-bottom: 16px; }
+    .section h3 { margin: 0 0 8px; font-size: 14px; color: #374151; }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .chip { padding: 4px 8px; border-radius: 12px; font-size: 12px; background: #f3f4f6; cursor: pointer; }
+    .chip.active { background: #2563eb; color: #fff; }
+    #network { width: 100%; height: calc(100vh - 56px); }
+    #d3wrap { position:absolute; inset:0; display:none; }
+    #d3wrap svg { width:100%; height:100%; background:#ffffff; }
+    .stat { font-size: 12px; color: #6b7280; }
+    .node-title { font-weight: 600; margin-bottom: 8px; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; background: #f9fafb; padding: 6px; border-radius: 6px; }
+    button { padding: 6px 10px; border: 1px solid #d1d5db; background: #fff; border-radius: 6px; cursor: pointer; }
+    .toolbar { display:flex; gap:8px; align-items:center; margin-top:8px; }
+    .legend { display:flex; flex-wrap:wrap; gap:8px; font-size:12px; }
+    .legend-item { display:flex; align-items:center; gap:6px; }
+    .legend-color { width:12px; height:12px; border-radius:2px; border:1px solid #e5e7eb; }
+  </style>
+  <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+  <script src="https://unpkg.com/d3@7/dist/d3.min.js"></script>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>🧩 Architecture Visualizer</h1>
+    </header>
+    <aside class="sidebar">
+      <div class="section">
+        <h3>Роли</h3>
+        <div id="roles" class="chips"></div>
+      </div>
+      <div class="section">
+        <h3>Подсистемы</h3>
+        <div id="subsystems" class="chips"></div>
+      </div>
+      <div class="section">
+        <h3>Снапшоты</h3>
+        <div id="snapshots" style="font-size:12px; color:#374151"></div>
+      </div>
+      <div class="section">
+        <button id="reindexBtn">Пересобрать</button>
+        <button id="analyzeBtn">Analyze (commit)</button>
+        <div class="stat" id="stats"></div>
+      </div>
+    </aside>
+    <main class="content">
+      <div class="toolbar" style="position:absolute; left:8px; top:8px; z-index:10; background:#ffffffcc; padding:6px; border-radius:6px;">
+        <select id="colorMode">
+          <option value="role">Цвет: Роли</option>
+          <option value="subsystem">Цвет: Подсистемы</option>
+        </select>
+        <select id="renderer">
+          <option value="vis">Рендер: Vis</option>
+          <option value="d3">Рендер: D3 (SVG)</option>
+        </select>
+        <input id="search" placeholder="Найти функцию..." style="padding:6px; border:1px solid #d1d5db; border-radius:6px;" />
+        <button id="exportPNG">PNG</button>
+        <button id="exportSVG">SVG</button>
+      </div>
+      <div id="network"></div>
+      <div id="d3wrap"><svg id="d3svg"></svg></div>
+    </main>
+    <aside class="panel">
+      <div class="section">
+        <div class="node-title" id="nodeTitle">Выберите узел</div>
+        <div id="nodeDetails" class="mono"></div>
+      </div>
+      <div class="section">
+        <h3>Связи</h3>
+        <div id="edgesDetails" class="mono"></div>
+      </div>
+    </aside>
+  </div>
+
+  <script>
+    const API = '/api/architecture';
+    const roleColors = { owner:'#ef4444', manager:'#f59e0b', employee:'#10b981', admin:'#6366f1', moderator:'#8b5cf6', system:'#6b7280' };
+    function hashColor(str) { let h=0; for (let i=0;i<str.length;i++){ h = (h<<5)-h + str.charCodeAt(i); h|=0; } const hue = Math.abs(h)%360; return `hsl(${hue},70%,60%)`; }
+    let allData = { nodes: [], edges: [], stats: {} };
+    let activeRoles = new Set();
+    let activeSubsystems = new Set();
+    let network = null;
+    let currentRenderer = 'vis';
+    let currentColorMode = 'role';
+
+    const $roles = document.getElementById('roles');
+    const $subs = document.getElementById('subsystems');
+    const $snaps = document.getElementById('snapshots');
+    const $stats = document.getElementById('stats');
+    const $nodeTitle = document.getElementById('nodeTitle');
+    const $nodeDetails = document.getElementById('nodeDetails');
+    const $edgesDetails = document.getElementById('edgesDetails');
+
+    function chip(text, active) {
+      const el = document.createElement('div');
+      el.className = 'chip' + (active ? ' active' : '');
+      el.textContent = text;
+      return el;
+    }
+
+    function renderFilters(meta) {
+      $roles.innerHTML = '';
+      (meta.roles || []).forEach(r => {
+        const c = chip(r, activeRoles.has(r));
+        c.onclick = () => { toggleSet(activeRoles, r); draw(); renderFilters(meta); };
+        c.style.borderLeft = `6px solid ${roleColors[r]||'#9ca3af'}`;
+        $roles.appendChild(c);
+      });
+      $subs.innerHTML = '';
+      (meta.subsystems || []).slice(0, 40).forEach(s => {
+        const c = chip(s, activeSubsystems.has(s));
+        c.onclick = () => { toggleSet(activeSubsystems, s); draw(); renderFilters(meta); };
+        $subs.appendChild(c);
+      });
+    }
+
+    function toggleSet(set, value) {
+      if (set.has(value)) set.delete(value); else set.add(value);
+    }
+
+    function filterData() {
+      const roleFilter = activeRoles.size ? (n) => activeRoles.has(n.role) : () => true;
+      const subFilter = activeSubsystems.size ? (n) => activeSubsystems.has(n.subsystem) : () => true;
+      const nodes = allData.nodes.filter(n => n.type === 'function' && roleFilter(n) && subFilter(n));
+      const nodeIds = new Set(nodes.map(n => n.id));
+      const edges = allData.edges.filter(e => e.type === 'calls' && nodeIds.has(e.source) && nodeIds.has(e.target));
+      return {nodes, edges};
+    }
+
+    function nodeColor(n){ return currentColorMode==='role' ? (roleColors[n.role]||'#93c5fd') : hashColor(n.subsystem||''); }
+
+    function draw() {
+      const {nodes, edges} = filterData();
+      if (currentRenderer==='vis') {
+        document.getElementById('network').style.display='block';
+        document.getElementById('d3wrap').style.display='none';
+        const visNodes = nodes.map(n => ({ id:n.id, label:n.label, title:n.fqn, color: nodeColor(n), value: Math.max(1, Math.round((n.weight||0)*10)) }));
+        const visEdges = edges.map(e => ({ from:e.source, to:e.target, color:'#cbd5e1', arrows:'to' }));
+        const container = document.getElementById('network');
+        const data = { nodes: new vis.DataSet(visNodes), edges: new vis.DataSet(visEdges) };
+        const options = { physics:{ stabilization:true, barnesHut:{ gravitationalConstant:-20000 } }, nodes:{ scaling:{ min:1, max:25 } }, interaction:{ hover:true } };
+        network = new vis.Network(container, data, options);
+        network.on('selectNode', (params) => showNode(params.nodes[0]));
+      } else {
+        renderD3(nodes, edges);
+      }
+      $stats.textContent = `nodes: ${nodes.length} / ${allData.stats.total_nodes || 0}, edges: ${edges.length}`;
+      renderLegend(nodes);
+    }
+
+    function renderLegend(nodes){
+      const by = currentColorMode;
+      const top = {};
+      nodes.slice(0,5000).forEach(n => { const key = by==='role' ? (n.role||'other') : (n.subsystem||'other'); top[key] = (top[key]||0)+1; });
+      const items = Object.entries(top).sort((a,b)=>b[1]-a[1]).slice(0,8);
+      const html = items.map(([k,v])=>`<div class="legend-item"><span class="legend-color" style="background:${by==='role'?(roleColors[k]||'#93c5fd'):hashColor(k)}"></span><span>${k} (${v})</span></div>`).join('');
+      const legendBox = document.getElementById('legend'); if (legendBox) legendBox.innerHTML = html + `<div class="stat" style="margin-top:6px;">вес = role*0.4 + subsystem*0.3 + degree*0.3</div>`;
+    }
+
+    function renderD3(nodes, edges){
+      document.getElementById('network').style.display='none';
+      const wrap = document.getElementById('d3wrap'); wrap.style.display='block';
+      const svg = d3.select('#d3svg'); svg.selectAll('*').remove();
+      const width = wrap.clientWidth; const height = wrap.clientHeight;
+      const sim = d3.forceSimulation(nodes)
+        .force('link', d3.forceLink(edges).id(d=>d.id).distance(60))
+        .force('charge', d3.forceManyBody().strength(-120))
+        .force('center', d3.forceCenter(width/2, height/2));
+      const link = svg.append('g').attr('stroke','#cbd5e1').selectAll('line').data(edges).enter().append('line').attr('stroke-width',1);
+      const node = svg.append('g').selectAll('circle').data(nodes).enter().append('circle')
+        .attr('r', d=>Math.max(3, Math.round((d.weight||0)*10)))
+        .attr('fill', d=>nodeColor(d))
+        .call(d3.drag().on('start', dragstarted).on('drag', dragged).on('end', dragended))
+        .on('click', (e,d)=> showNode(d.id));
+      const label = svg.append('g').selectAll('text').data(nodes).enter().append('text')
+        .text(d=>d.label).attr('font-size','10px').attr('dx',8).attr('dy',3).attr('fill','#374151');
+      sim.on('tick', ()=>{
+        link.attr('x1', d=>d.source.x).attr('y1', d=>d.source.y).attr('x2', d=>d.target.x).attr('y2', d=>d.target.y);
+        node.attr('cx', d=>d.x).attr('cy', d=>d.y);
+        label.attr('x', d=>d.x).attr('y', d=>d.y);
+      });
+      function dragstarted(event){ if (!event.active) sim.alphaTarget(0.3).restart(); event.subject.fx = event.subject.x; event.subject.fy = event.subject.y; }
+      function dragged(event){ event.subject.fx = event.x; event.subject.fy = event.y; }
+      function dragended(event){ if (!event.active) sim.alphaTarget(0); event.subject.fx = null; event.subject.fy = null; }
+    }
+
+    async function showNode(id) {
+      try {
+        const res = await fetch(`${API}/node/${encodeURIComponent(id)}`);
+        const data = await res.json();
+        $nodeTitle.textContent = data.node.label;
+        $nodeDetails.textContent = JSON.stringify(data.node, null, 2);
+        $edgesDetails.textContent = `in: ${data.incoming.length}, out: ${data.outgoing.length}`;
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    async function loadAll() {
+      const [metaRes, graphRes, snapsRes] = await Promise.all([
+        fetch(`${API}/meta`), fetch(`${API}/graph`), fetch(`${API}/snapshots`)
+      ]);
+      const [meta, graph, snaps] = await Promise.all([metaRes.json(), graphRes.json(), snapsRes.json()]);
+      allData = graph;
+      renderFilters(meta);
+      $snaps.innerHTML = (snaps.items||[]).slice(0,10).map(s => `<div class="mono">${s.id} · ${s.stats_nodes}/${s.stats_edges}</div>`).join('');
+      draw();
+    }
+
+    document.getElementById('reindexBtn').onclick = async () => {
+      await fetch(`${API}/reindex`, { method:'POST' });
+      setTimeout(loadAll, 2000);
+    };
+    document.getElementById('analyzeBtn').onclick = async () => {
+      const commit = prompt('Commit SHA (optional):', 'manual');
+      await fetch(`${API}/analyze`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ project:'staffprobot', commit_sha: commit||'' })});
+      setTimeout(loadAll, 2000);
+    };
+
+    document.getElementById('colorMode').onchange = (e)=>{ currentColorMode = e.target.value; draw(); };
+    document.getElementById('renderer').onchange = (e)=>{ currentRenderer = e.target.value; draw(); };
+    document.getElementById('search').addEventListener('keydown', (e)=>{
+      if (e.key==='Enter') {
+        const q = e.target.value.trim().toLowerCase(); if (!q) return;
+        const hit = allData.nodes.find(n => (n.label||'').toLowerCase().includes(q) || (n.fqn||'').toLowerCase().includes(q));
+        if (hit) { if (currentRenderer==='vis' && network) network.selectNodes([hit.id]); showNode(hit.id); }
+      }
+    });
+    document.getElementById('exportPNG').onclick = ()=>{
+      if (currentRenderer==='vis' && network && network.canvas && network.canvas.frame && network.canvas.frame.canvas) {
+        const url = network.canvas.frame.canvas.toDataURL('image/png'); const a = document.createElement('a'); a.href=url; a.download='architecture.png'; a.click();
+      } else {
+        const svg = document.getElementById('d3svg'); const svgData = new XMLSerializer().serializeToString(svg);
+        const canvas = document.createElement('canvas'); canvas.width = svg.clientWidth; canvas.height = svg.clientHeight;
+        const ctx = canvas.getContext('2d'); const img = new Image();
+        img.onload = function(){ ctx.drawImage(img,0,0); const url=canvas.toDataURL('image/png'); const a=document.createElement('a'); a.href=url; a.download='architecture.png'; a.click(); };
+        img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgData);
+      }
+    };
+    document.getElementById('exportSVG').onclick = ()=>{
+      if (currentRenderer==='d3') {
+        const svg = document.getElementById('d3svg'); const svgData = new XMLSerializer().serializeToString(svg);
+        const blob = new Blob([svgData], {type: 'image/svg+xml;charset=utf-8'}); const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href=url; a.download='architecture.svg'; a.click(); URL.revokeObjectURL(url);
+      } else {
+        fetch(`${API}/diagram`).then(r=>r.json()).then(d=>{ const blob = new Blob([d.mermaid||''], {type:'text/plain'}); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href=url; a.download='architecture.mmd'; a.click(); URL.revokeObjectURL(url); });
+      }
+    };
+
+    // добавить контейнер легенды в тулбар
+    (function(){ const leg = document.createElement('div'); leg.id='legend'; leg.className='legend'; document.querySelector('.toolbar').appendChild(leg); })();
+    loadAll();
+  </script>
+</body>
+</html>
+
+

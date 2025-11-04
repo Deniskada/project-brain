@@ -7,9 +7,13 @@ from typing import Optional, Dict, Any
 import logging
 import hashlib
 import hmac
+from datetime import datetime
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+# Хранилище статусов последних индексаций (в памяти)
+indexing_status = {}
 
 class WebhookPayload(BaseModel):
     ref: Optional[str] = None
@@ -20,10 +24,20 @@ async def process_github_push(payload: Dict[str, Any]):
     """
     Обработка push события от GitHub
     """
+    repo_name = payload.get('repository', {}).get('name', 'unknown')
+    
     try:
-        repo_name = payload.get('repository', {}).get('name', 'unknown')
         ref = payload.get('ref', '')
         commits_count = len(payload.get('commits', []))
+        
+        # Обновляем статус - начало индексации
+        indexing_status[repo_name] = {
+            'status': 'in_progress',
+            'started_at': datetime.now().isoformat(),
+            'ref': ref,
+            'commits_count': commits_count,
+            'message': 'Индексация начата'
+        }
         
         logger.info(f"🔄 GitHub Push: {repo_name}, ref: {ref}, commits: {commits_count}")
         
@@ -50,7 +64,14 @@ async def process_github_push(payload: Dict[str, Any]):
                 # Получаем путь к проекту
                 from ...indexers.simple_project_indexer import SimpleProjectIndexer
                 indexer = SimpleProjectIndexer()
-                project_config = indexer.get_project_config(project_name)
+                indexer.load_config()
+                
+                # Найти конфигурацию проекта
+                project_config = None
+                for proj in indexer.projects:
+                    if proj['name'] == project_name:
+                        project_config = proj
+                        break
                 
                 if not project_config:
                     logger.error(f"❌ Конфигурация проекта {project_name} не найдена")
@@ -104,6 +125,7 @@ async def process_github_push(payload: Dict[str, Any]):
                 
                 # Инициализация
                 project_indexer = SimpleProjectIndexer()
+                project_indexer.load_config()  # ВАЖНО: загрузить конфигурацию!
                 python_indexer = PythonIndexer()
                 markdown_indexer = MarkdownIndexer()
                 rag_engine = RAGEngine()
@@ -157,16 +179,39 @@ async def process_github_push(payload: Dict[str, Any]):
                 
                 logger.info(f"✅ Индексация завершена: {stats}")
                 
-                # TODO: Отправить уведомление в Telegram
+                # Обновляем статус - успешное завершение
+                indexing_status[repo_name] = {
+                    'status': 'completed',
+                    'started_at': indexing_status.get(repo_name, {}).get('started_at'),
+                    'completed_at': datetime.now().isoformat(),
+                    'ref': ref,
+                    'commits_count': commits_count,
+                    'stats': stats,
+                    'message': 'Индексация успешно завершена'
+                }
                 
             else:
                 logger.warning(f"⚠️ Проект {repo_name} не настроен для автоиндексации")
         
         else:
             logger.info(f"ℹ️ Пропускаем индексацию для ref: {ref}")
+            indexing_status[repo_name] = {
+                'status': 'skipped',
+                'ref': ref,
+                'message': f'Индексация пропущена для ref: {ref}'
+            }
     
     except Exception as e:
         logger.error(f"❌ Ошибка обработки webhook: {e}", exc_info=True)
+        # Обновляем статус - ошибка
+        indexing_status[repo_name] = {
+            'status': 'failed',
+            'started_at': indexing_status.get(repo_name, {}).get('started_at'),
+            'failed_at': datetime.now().isoformat(),
+            'ref': ref,
+            'error': str(e),
+            'message': f'Ошибка индексации: {str(e)}'
+        }
 
 def verify_github_signature(payload_body: bytes, signature: str, secret: str) -> bool:
     """
@@ -280,5 +325,34 @@ async def manual_reindex(project_name: str, background_tasks: BackgroundTasks):
     return {
         "status": "accepted",
         "message": f"Reindexing {project_name} started in background"
+    }
+
+@router.get("/status")
+async def get_indexing_status():
+    """
+    Получить статус всех индексаций
+    """
+    return {
+        "status": "ok",
+        "indexing_status": indexing_status
+    }
+
+@router.get("/status/{project_name}")
+async def get_project_status(project_name: str):
+    """
+    Получить статус индексации конкретного проекта
+    """
+    status = indexing_status.get(project_name)
+    
+    if not status:
+        return {
+            "status": "not_found",
+            "message": f"Проект {project_name} ещё не индексировался"
+        }
+    
+    return {
+        "status": "ok",
+        "project": project_name,
+        "indexing": status
     }
 

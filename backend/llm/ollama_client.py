@@ -31,43 +31,31 @@ class OllamaClient:
     ) -> str:
         """
         Генерация ответа на основе запроса и контекста
+        
+        РЕЖИМ: Прямой возврат из контекста БЕЗ LLM (100% точность)
         """
-        try:
-            logger.info(f"Генерация ответа с моделью: {self.model} для проекта: {project_name}")
-            
-            # Формирование промпта
-            prompt = self._build_prompt(query, context, project_name)
-            logger.info(f"Промпт: {prompt[:100]}...")
-            
-            # Запрос к Ollama через requests
-            import requests
-            response = requests.post(
-                f"{self.base_url}/api/generate",
-                json={
-                    "model": self.model,
-                    "prompt": prompt,
-                    "stream": False,
-                    "options": {
-                        "num_predict": max_tokens,
-                        "temperature": 0.3,  # Меньше креативности = точнее ответы
-                        "top_p": 0.85,
-                        "repeat_penalty": 1.2,  # Избегаем повторений
-                        "num_ctx": 4096  # Больше контекста
-                    }
-                },
-                timeout=90  # 90 секунд достаточно для 14B
-            )
-            
-            if response.status_code == 200:
-                result = response.json()
-                return result.get("response", "Ошибка генерации ответа")
-            else:
-                logger.error(f"Ошибка запроса к Ollama: {response.status_code}")
-                return "Ошибка при генерации ответа"
-                    
-        except Exception as e:
-            logger.error(f"Ошибка при генерации ответа: {e}")
-            return f"Ошибка при генерации ответа: {str(e)}"
+        logger.info(f"🎯 DIRECT MODE: возврат лучшего результата из {len(context)} документов")
+        
+        if not context:
+            return "❌ В базе знаний нет информации по этому вопросу."
+        
+        # Берём ЛУЧШИЙ результат из контекста
+        best_doc = context[0]
+        
+        # Извлекаем content (там уже есть вопрос и ответ)
+        content = best_doc.get('content', '')
+        
+        # Если это QA пара - извлекаем ответ
+        if 'Ответ:' in content:
+            parts = content.split('Ответ:', 1)
+            if len(parts) == 2:
+                answer = parts[1].strip()
+                logger.info(f"✅ Найден готовый ответ ({len(answer)} симв.)")
+                return answer
+        
+        # Если обычный документ - возвращаем как есть
+        logger.info(f"✅ Возвращаем документ ({len(content)} симв.)")
+        return content
     
     def _build_prompt(self, query: str, context: List[Dict[str, Any]], project_name: str = "staffprobot") -> str:
         """Построение промпта для LLM с учётом типов документов"""

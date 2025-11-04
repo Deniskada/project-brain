@@ -9,7 +9,7 @@ from fastapi.responses import HTMLResponse
 import os
 from typing import Dict, Any
 
-from .routes import query, index, projects, stats, context_rules, documentation, webhook
+from .routes import query, index, projects, stats, context_rules, documentation, webhook, architecture, datasets, faq_ai
 
 # Настройка логирования
 logging.basicConfig(
@@ -41,6 +41,9 @@ app.include_router(stats.router, prefix="/api", tags=["stats"])
 app.include_router(context_rules.router, prefix="/api", tags=["context-rules"])
 app.include_router(documentation.router, prefix="/api/documentation", tags=["documentation"])
 app.include_router(webhook.router, prefix="/api/webhook", tags=["webhook"])
+app.include_router(architecture.router, prefix="/api", tags=["architecture"])
+app.include_router(datasets.router, prefix="/api", tags=["datasets"])
+app.include_router(faq_ai.router, prefix="/api", tags=["faq-ai"])
 
 # Статические файлы
 if os.path.exists("frontend"):
@@ -71,6 +74,15 @@ async def chat():
             return HTMLResponse(content=f.read())
     except FileNotFoundError:
         return HTMLResponse(content="<h1>Чат не найден</h1>")
+
+@app.get("/architecture", response_class=HTMLResponse)
+async def architecture_ui():
+    """SPA визуализатора архитектуры"""
+    try:
+        with open("frontend/architecture/index.html", "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read())
+    except FileNotFoundError:
+        return HTMLResponse(content="<h1>Architecture UI не найден</h1>")
 
 @app.get("/docs", response_class=HTMLResponse)
 async def docs():

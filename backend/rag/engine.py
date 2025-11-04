@@ -147,7 +147,7 @@ class RAGEngine:
         self, 
         query: str, 
         project: str = "staffprobot",
-        top_k: int = 5
+        top_k: int = 12
     ) -> List[Dict[str, Any]]:
         """
         Поиск релевантного контекста для запроса с умной приоритизацией
@@ -305,16 +305,32 @@ class RAGEngine:
             # Создание эмбеддинга
             embedding = self.embedding_model.encode(content).tolist()
             
-            # Уникальный ID: используем chunk_id или создаём хеш
-            chunk_id = metadata.get('chunk_id', hash(f"{metadata.get('file', '')}_{metadata.get('start_line', 0)}_{content[:50]}"))
+            # Санитизация метаданных: только простые типы, короткие строки
+            clean_metadata = {}
+            for key, value in metadata.items():
+                if value is None:
+                    continue
+                if isinstance(value, bool):
+                    clean_metadata[key] = value
+                elif isinstance(value, (int, float)):
+                    clean_metadata[key] = str(value)
+                elif isinstance(value, str):
+                    # Ограничиваем длину строк
+                    clean_metadata[key] = value[:200] if len(value) > 200 else value
+                elif isinstance(value, list):
+                    # Конвертируем списки в строки
+                    clean_metadata[key] = ', '.join(str(v)[:50] for v in value[:5])
+            
+            # Уникальный ID: ВСЕГДА используем chunk_id
+            chunk_id = clean_metadata.get('chunk_id', abs(hash(f"{clean_metadata.get('file', 'unknown')}_{clean_metadata.get('start_line', 0)}_{content[:50]}")))
             doc_id = f"{project}_{chunk_id}"
             
-            # Сохранение в ChromaDB (с обработкой дублей)
+            # Сохранение в ChromaDB
             try:
                 collection.add(
                     embeddings=[embedding],
                     documents=[content],
-                    metadatas=[metadata],
+                    metadatas=[clean_metadata],
                     ids=[doc_id]
                 )
             except Exception as e:
@@ -322,17 +338,18 @@ class RAGEngine:
                 if "already exists" in str(e) or "duplicate" in str(e).lower():
                     pass  # Тихо пропускаем дубли
                 else:
-                    raise  # Другие ошибки пробрасываем
+                    logger.error(f"ПОЛНАЯ ошибка ChromaDB: {e}, metadata keys: {list(clean_metadata.keys())}")
+                    raise
             
         except Exception as e:
-            logger.error(f"Ошибка при сохранении документа: {e}")
-            # Не пробрасываем ошибку - просто логируем
+            logger.error(f"КРИТИЧЕСКАЯ ошибка при сохранении: {e}", exc_info=True)
+            raise  # Пробрасываем ошибку для диагностики
     
     async def query(
         self,
         query: str,
         project: str = "staffprobot",
-        top_k: int = 5
+        top_k: int = 12
     ) -> Dict[str, Any]:
         """
         Полный RAG запрос: поиск контекста + генерация ответа

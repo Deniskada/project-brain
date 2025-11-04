@@ -282,13 +282,14 @@
     </div>
 
     <script>
-        const API_BASE = 'http://localhost:8003/api';
+        const API_BASE = '/api';
         const messagesContainer = document.getElementById('messages');
         const messageInput = document.getElementById('messageInput');
         const sendButton = document.getElementById('sendButton');
         const loading = document.getElementById('loading');
         const status = document.getElementById('status');
         const chatForm = document.getElementById('chatForm');
+        let isSending = false;
 
         // Примеры вопросов для быстрого тестирования
         const exampleQuestions = [
@@ -349,26 +350,33 @@
         }
 
         async function sendMessage(message) {
+            if (isSending) return;
+            isSending = true;
             try {
                 showLoading();
                 
                 // Получаем выбранный проект
                 const selectedProject = document.getElementById('projectSelect').value;
                 
-                const response = await fetch(`${API_BASE}/query`, {
+                const url = `${API_BASE}/query`;
+                const payload = {
+                    query: message,
+                    project: selectedProject,
+                    context: {
+                        file: '',
+                        role: ''
+                    }
+                };
+                const options = {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        query: message,
-                        project: selectedProject,
-                        context: {
-                            file: '',
-                            role: ''
-                        }
-                    })
-                });
+                    headers: new Headers({ 'Content-Type': 'application/json' }),
+                    cache: 'no-store',
+                    redirect: 'follow',
+                    body: JSON.stringify(payload)
+                };
+
+                console.debug('POST', url, options);
+                const response = await fetch(url, options);
 
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -397,6 +405,7 @@
                 showStatus('Ошибка при отправке запроса', true);
             } finally {
                 hideLoading();
+                isSending = false;
             }
         }
 

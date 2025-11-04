@@ -169,7 +169,7 @@ class PythonIndexer:
         content: str, 
         file_path: str
     ) -> Optional[Dict[str, Any]]:
-        """Извлечение информации о функции"""
+        """Извлечение информации о функции с расширенными метаданными"""
         try:
             lines = content.split('\n')
             start_line = node.lineno
@@ -182,11 +182,60 @@ class PythonIndexer:
             docstring = ast.get_docstring(node)
             docstring_text = f"\n{docstring}" if docstring else ""
             
-            # Извлечение параметров
-            params = [arg.arg for arg in node.args.args]
-            params_text = f"\nПараметры: {', '.join(params)}" if params else ""
+            # Извлечение параметров с аннотациями типов
+            params = []
+            param_types = {}
+            for arg in node.args.args:
+                param_name = arg.arg
+                params.append(param_name)
+                if arg.annotation:
+                    # Попытка извлечь тип
+                    if isinstance(arg.annotation, ast.Name):
+                        param_types[param_name] = arg.annotation.id
+                    elif isinstance(arg.annotation, ast.Constant):
+                        param_types[param_name] = str(arg.annotation.value)
             
-            chunk_content = f"Функция {node.name}:{docstring_text}{params_text}\n\nКод:\n{function_code}"
+            params_text = f"\nПараметры: {', '.join(params)}" if params else ""
+            if param_types:
+                types_text = ", ".join([f"{k}: {v}" for k, v in param_types.items()])
+                params_text += f"\nТипы: {types_text}"
+            
+            # Извлечение return type
+            return_type = "Any"
+            if node.returns:
+                if isinstance(node.returns, ast.Name):
+                    return_type = node.returns.id
+                elif isinstance(node.returns, ast.Constant):
+                    return_type = str(node.returns.value)
+            
+            # Извлечение декораторов
+            decorators = []
+            for decorator in node.decorator_list:
+                if isinstance(decorator, ast.Name):
+                    decorators.append(decorator.id)
+                elif isinstance(decorator, ast.Attribute):
+                    decorators.append(decorator.attr)
+            
+            decorators_text = f"\nДекораторы: {', '.join(decorators)}" if decorators else ""
+            
+            # Извлечение вызываемых функций внутри
+            called_functions = []
+            for child in ast.walk(node):
+                if isinstance(child, ast.Call):
+                    if isinstance(child.func, ast.Name):
+                        called_functions.append(child.func.id)
+                    elif isinstance(child.func, ast.Attribute):
+                        called_functions.append(child.func.attr)
+            called_functions = list(set(called_functions))[:10]  # Уникальные, макс 10
+            
+            calls_text = f"\nВызывает функции: {', '.join(called_functions)}" if called_functions else ""
+            
+            # Формирование контента с ТОЧНЫМИ строками
+            chunk_content = f"""Функция {node.name} (строки {start_line}-{end_line}):{docstring_text}{params_text}
+Return type: {return_type}{decorators_text}{calls_text}
+
+Код:
+{function_code}"""
             
             return {
                 "content": chunk_content,
@@ -196,6 +245,11 @@ class PythonIndexer:
                 "end_line": end_line,
                 "type": "function",
                 "function_name": node.name,
+                "parameters": params,
+                "param_types": param_types,
+                "return_type": return_type,
+                "decorators": decorators,
+                "calls_functions": called_functions,
                 "chunk_id": hash(f"{file_path}_{node.name}")
             }
             

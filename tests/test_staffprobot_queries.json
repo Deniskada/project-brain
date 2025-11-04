@@ -1,0 +1,180 @@
+{
+  "test_queries": [
+    {
+      "id": 1,
+      "category": "Архитектура",
+      "query": "Какие роли пользователей есть в системе StaffProBot?",
+      "expected_keywords": ["owner", "manager", "employee", "admin", "moderator"],
+      "difficulty": "easy"
+    },
+    {
+      "id": 2,
+      "category": "Архитектура",
+      "query": "Опиши структуру проекта StaffProBot: какие основные папки и за что они отвечают?",
+      "expected_keywords": ["apps", "core", "domain", "shared", "web", "bot"],
+      "difficulty": "easy"
+    },
+    {
+      "id": 3,
+      "category": "Бизнес-логика",
+      "query": "Как происходит открытие смены сотрудником?",
+      "expected_keywords": ["shift", "coordinates", "geolocation", "object"],
+      "difficulty": "medium"
+    },
+    {
+      "id": 4,
+      "category": "Бизнес-логика",
+      "query": "Что происходит при закрытии смены?",
+      "expected_keywords": ["shift", "close", "end_time", "timesheet"],
+      "difficulty": "medium"
+    },
+    {
+      "id": 5,
+      "category": "API",
+      "query": "Какие API endpoints есть для работы с объектами (Objects)?",
+      "expected_keywords": ["/owner/", "/manager/", "objects", "create", "update"],
+      "difficulty": "medium"
+    },
+    {
+      "id": 6,
+      "category": "API",
+      "query": "Какие endpoints есть для работы со сменами?",
+      "expected_keywords": ["shift", "/api/", "start", "end", "status"],
+      "difficulty": "medium"
+    },
+    {
+      "id": 7,
+      "category": "База данных",
+      "query": "Какие поля есть в модели Shift?",
+      "expected_keywords": ["user_id", "object_id", "start_time", "end_time", "status"],
+      "difficulty": "easy"
+    },
+    {
+      "id": 8,
+      "category": "База данных",
+      "query": "Какие связи есть между моделями User, Object и Shift?",
+      "expected_keywords": ["ForeignKey", "relationship", "user_id", "object_id"],
+      "difficulty": "hard"
+    },
+    {
+      "id": 9,
+      "category": "Аутентификация",
+      "query": "Как реализована аутентификация пользователей?",
+      "expected_keywords": ["telegram_id", "token", "session", "auth"],
+      "difficulty": "medium"
+    },
+    {
+      "id": 10,
+      "category": "Аутентификация",
+      "query": "В чём разница между telegram_id и user_id в StaffProBot?",
+      "expected_keywords": ["telegram_id", "user_id", "internal", "database"],
+      "difficulty": "hard"
+    },
+    {
+      "id": 11,
+      "category": "Геолокация",
+      "query": "Как работает проверка геолокации при открытии смены?",
+      "expected_keywords": ["coordinates", "distance", "MAX_DISTANCE", "calculate_distance"],
+      "difficulty": "medium"
+    },
+    {
+      "id": 12,
+      "category": "Telegram Bot",
+      "query": "Какие команды бота доступны сотруднику?",
+      "expected_keywords": ["/start", "/shift", "/help", "открыть смену", "закрыть смену"],
+      "difficulty": "easy"
+    },
+    {
+      "id": 13,
+      "category": "Telegram Bot",
+      "query": "Как реализованы инлайн-кнопки в Telegram боте?",
+      "expected_keywords": ["InlineKeyboardMarkup", "callback_data", "handler"],
+      "difficulty": "medium"
+    },
+    {
+      "id": 14,
+      "category": "Веб-интерфейс",
+      "query": "Какие роуты есть для владельца (owner) в веб-интерфейсе?",
+      "expected_keywords": ["/owner/", "objects", "employees", "contracts", "dashboard"],
+      "difficulty": "easy"
+    },
+    {
+      "id": 15,
+      "category": "Веб-интерфейс",
+      "query": "Как реализован календарь смен в веб-интерфейсе?",
+      "expected_keywords": ["calendar", "shifts", "template", "javascript"],
+      "difficulty": "medium"
+    },
+    {
+      "id": 16,
+      "category": "Документация",
+      "query": "Какие правила разработки описаны в документации?",
+      "expected_keywords": ["conventions", "rules", "workflow", "DDD", "CQRS"],
+      "difficulty": "easy"
+    },
+    {
+      "id": 17,
+      "category": "Документация",
+      "query": "Что такое Project Brain и как он интегрирован в StaffProBot?",
+      "expected_keywords": ["Project Brain", "RAG", "AI", "documentation", "knowledge"],
+      "difficulty": "medium"
+    },
+    {
+      "id": 18,
+      "category": "Конфигурация",
+      "query": "Какие переменные окружения используются в проекте?",
+      "expected_keywords": ["DATABASE_URL", "REDIS_URL", "SECRET_KEY", ".env"],
+      "difficulty": "easy"
+    },
+    {
+      "id": 19,
+      "category": "Деплой",
+      "query": "Как развернуть проект на production?",
+      "expected_keywords": ["docker", "compose", "deployment", "nginx", "systemd"],
+      "difficulty": "hard"
+    },
+    {
+      "id": 20,
+      "category": "Деплой",
+      "query": "Как обновить статику на production после изменений?",
+      "expected_keywords": ["static_version", "cache", "restart", "docker compose"],
+      "difficulty": "medium"
+    },
+    {
+      "id": 21,
+      "category": "Тестирование",
+      "query": "Какие тесты есть в проекте?",
+      "expected_keywords": ["pytest", "tests", "unit", "integration"],
+      "difficulty": "easy"
+    },
+    {
+      "id": 22,
+      "category": "Сложный запрос",
+      "query": "Опиши полный flow открытия и закрытия смены: от клика сотрудника в боте до сохранения в БД",
+      "expected_keywords": ["handler", "service", "repository", "shift", "database", "telegram"],
+      "difficulty": "hard"
+    },
+    {
+      "id": 23,
+      "category": "Сложный запрос",
+      "query": "Как реализована система контрактов и расчёта зарплаты?",
+      "expected_keywords": ["contract", "timesheet", "salary", "calculation", "payment"],
+      "difficulty": "hard"
+    },
+    {
+      "id": 24,
+      "category": "Отладка",
+      "query": "Где найти логи ошибок при работе веб-приложения?",
+      "expected_keywords": ["logger", "logging", "docker logs", "error"],
+      "difficulty": "easy"
+    },
+    {
+      "id": 25,
+      "category": "Отладка",
+      "query": "Что делать если при создании договора выдаётся ошибка про активный договор?",
+      "expected_keywords": ["contract", "active", "error", "validation", "check"],
+      "difficulty": "medium"
+    }
+  ]
+}
+
