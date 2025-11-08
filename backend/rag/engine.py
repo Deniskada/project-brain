@@ -55,6 +55,7 @@ class RAGEngine:
                 metadata={"description": f"Knowledge base for {project}"}
             )
             logger.info(f"📚 Использую коллекцию: {collection_name}")
+            self.collection = collection
             return collection
         except Exception as e:
             logger.error(f"❌ Ошибка получения коллекции {collection_name}: {e}")

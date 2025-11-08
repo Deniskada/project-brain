@@ -13,6 +13,7 @@
 ---
 
 ## 📋 Настройка (1 раз)
+> Все примеры ниже используют `http://localhost:8003`. При внешнем доступе замените `localhost` на адрес сервера (`<HOST>`).
 
 ### Шаг 1: Проверка готовности ✅
 
@@ -34,9 +35,9 @@
 
 | Поле | Значение |
 |------|----------|
-| **Payload URL** | `http://192.168.2.107:8003/api/webhook/github` |
+| **Payload URL** | `http://<HOST>:8003/api/webhook/github` (локально `http://localhost:8003/api/webhook/github`) |
 | **Content type** | `application/json` |
-| **Secret** | `f00872ab2116aa77a1931cbaa594cf3bf77b63ecf9a7739955366511fb14f42e` |
+| **Secret** | значение `GITHUB_WEBHOOK_SECRET` из `.env` |
 | **Which events?** | ✅ Just the push event |
 | **Active** | ✅ Enabled |
 
@@ -55,7 +56,7 @@
 ### 1. Проверка endpoint:
 
 ```bash
-curl http://192.168.2.107:8003/api/webhook/test
+curl http://localhost:8003/api/webhook/test
 ```
 
 **Ожидаемый ответ:**
@@ -72,7 +73,7 @@ curl http://192.168.2.107:8003/api/webhook/test
 ### 2. Ручная переиндексация (для теста):
 
 ```bash
-curl -X POST http://192.168.2.107:8003/api/webhook/manual-reindex/staffprobot
+curl -X POST http://localhost:8003/api/webhook/manual-reindex/staffprobot
 ```
 
 **Ожидаемый ответ:**
@@ -87,10 +88,10 @@ curl -X POST http://192.168.2.107:8003/api/webhook/manual-reindex/staffprobot
 
 ```bash
 # Все проекты
-curl http://192.168.2.107:8003/api/webhook/status
+curl http://localhost:8003/api/webhook/status
 
 # Конкретный проект
-curl http://192.168.2.107:8003/api/webhook/status/staffprobot
+curl http://localhost:8003/api/webhook/status/staffprobot
 ```
 
 **Пример ответа:**
@@ -189,10 +190,10 @@ git push origin main
 
 ```bash
 # Через 1-2 минуты после push
-curl http://192.168.2.107:8003/api/webhook/status/staffprobot
+curl http://localhost:8003/api/webhook/status/staffprobot
 
 # Или задать вопрос про новые изменения
-curl -X POST http://192.168.2.107:8003/api/query \
+curl -X POST http://localhost:8003/api/query \
   -H "Content-Type: application/json" \
   -d '{"query": "расскажи о последних изменениях в коде"}'
 ```
@@ -218,7 +219,7 @@ docker compose -f docker-compose.local.yml ps
 
 **Проверка 3:** Endpoint доступен
 ```bash
-curl http://192.168.2.107:8003/api/webhook/test
+curl http://localhost:8003/api/webhook/test
 ```
 
 ### Проблема: Индексация не запускается
@@ -264,13 +265,13 @@ git pull origin main
 ### Просмотр всех индексаций:
 
 ```bash
-curl http://192.168.2.107:8003/api/webhook/status | jq
+curl http://localhost:8003/api/webhook/status | jq
 ```
 
 ### Просмотр конкретного проекта:
 
 ```bash
-curl http://192.168.2.107:8003/api/webhook/status/staffprobot | jq
+curl http://localhost:8003/api/webhook/status/staffprobot | jq
 ```
 
 ### История в GitHub:
@@ -324,13 +325,13 @@ git push
 
 ```bash
 # Проверка что webhook работает
-curl http://192.168.2.107:8003/api/webhook/test
+curl http://localhost:8003/api/webhook/test
 
 # Статус последней индексации
-curl http://192.168.2.107:8003/api/webhook/status/staffprobot
+curl http://localhost:8003/api/webhook/status/staffprobot
 
 # Ручная переиндексация (если нужно)
-curl -X POST http://192.168.2.107:8003/api/webhook/manual-reindex/staffprobot
+curl -X POST http://localhost:8003/api/webhook/manual-reindex/staffprobot
 
 # Логи в реальном времени
 cd /home/sa/projects/project-brain

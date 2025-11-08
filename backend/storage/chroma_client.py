@@ -1,172 +1,185 @@
 """
-ChromaDB клиент для хранения векторных данных
+ChromaDB клиент для хранения векторных данных (адаптирован под chromadb 0.5.x)
 """
+import asyncio
 import logging
-import yaml
 import os
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
+
 import chromadb
-from chromadb.config import Settings
+import yaml
+from chromadb.api import ClientAPI
 
 logger = logging.getLogger(__name__)
 
+
 class ChromaClient:
-    def __init__(self, host: str = "chromadb", port: int = 8000):
+    """Асинхронная обёртка над синхронным chromadb.HttpClient."""
+
+    def __init__(self, host: str = "chromadb", port: int = 8000) -> None:
         self.host = host
         self.port = port
-        self.client = None
+        self.client: Optional[ClientAPI] = None
         self.collection = None
-        
-    async def initialize(self):
-        """Инициализация ChromaDB клиента"""
+        self._default_collection_name = "project_brain"
+
+    async def initialize(self) -> None:
+        """Инициализация ChromaDB клиента."""
         try:
-            self.client = chromadb.AsyncClient(
-                host=self.host,
-                port=self.port,
-                settings=Settings(allow_reset=True)
+            self.client = chromadb.HttpClient(host=self.host, port=self.port)
+            self.collection = await asyncio.to_thread(
+                self.client.get_or_create_collection,
+                name=self._default_collection_name,
+                metadata={"description": "Project Brain knowledge base"},
             )
-            
-            # Получение или создание коллекции
-            try:
-                self.collection = await self.client.get_collection("project_brain")
-            except:
-                self.collection = await self.client.create_collection(
-                    "project_brain",
-                    metadata={"description": "Project Brain knowledge base"}
-                )
-            
             logger.info("ChromaDB клиент инициализирован успешно")
-            
-        except Exception as e:
-            logger.error(f"Ошибка инициализации ChromaDB: {e}")
+        except Exception as error:
+            logger.error("Ошибка инициализации ChromaDB: %s", error, exc_info=True)
             raise
-    
-    async def store_chunks(self, project: str, chunks: List[Dict[str, Any]]):
-        """Сохранение чанков в ChromaDB"""
+
+    async def store_chunks(self, project: str, chunks: List[Dict[str, Any]]) -> None:
+        """Сохранение чанков в ChromaDB."""
+        if not chunks:
+            return
+
+        if self.collection is None:
+            raise RuntimeError("ChromaDB коллекция не инициализирована")
+
         try:
-            if not chunks:
-                return
-            
-            # Подготовка данных для ChromaDB
-            embeddings = []
-            documents = []
-            metadatas = []
-            ids = []
-            
+            embeddings: List[List[float]] = []
+            documents: List[str] = []
+            metadatas: List[Dict[str, Any]] = []
+            ids: List[str] = []
+
             for chunk in chunks:
-                # TODO: Здесь должен быть вызов модели эмбеддингов
-                # Пока используем заглушку - в реальности нужно использовать sentence-transformers
-                embedding = [0.0] * 384  # Размер эмбеддинга для all-MiniLM-L6-v2
-                
+                embedding = [0.0] * 384  # TODO: заменить на реальные эмбеддинги
                 embeddings.append(embedding)
-                documents.append(chunk['content'])
-                
-                metadata = {
-                    'project': project,
-                    'file': chunk.get('file', ''),
-                    'lines': chunk.get('lines', ''),
-                    'type': chunk.get('type', ''),
-                    'chunk_id': chunk.get('chunk_id', 0)
+                documents.append(chunk["content"])
+
+                metadata: Dict[str, Any] = {
+                    "project": project,
+                    "file": chunk.get("file", ""),
+                    "lines": chunk.get("lines", ""),
+                    "type": chunk.get("type", ""),
+                    "chunk_id": chunk.get("chunk_id", 0),
                 }
-                
-                # Добавление дополнительных метаданных
-                if 'class_name' in chunk:
-                    metadata['class_name'] = chunk['class_name']
-                if 'function_name' in chunk:
-                    metadata['function_name'] = chunk['function_name']
-                if 'section' in chunk:
-                    metadata['section'] = chunk['section']
-                
+                if "class_name" in chunk:
+                    metadata["class_name"] = chunk["class_name"]
+                if "function_name" in chunk:
+                    metadata["function_name"] = chunk["function_name"]
+                if "section" in chunk:
+                    metadata["section"] = chunk["section"]
+
                 metadatas.append(metadata)
                 ids.append(f"{project}_{chunk.get('file', '')}_{chunk.get('chunk_id', 0)}")
-            
-            # Сохранение в ChromaDB
-            await self.collection.add(
+
+            await asyncio.to_thread(
+                self.collection.add,
                 embeddings=embeddings,
                 documents=documents,
                 metadatas=metadatas,
-                ids=ids
+                ids=ids,
             )
-            
-            logger.info(f"Сохранено {len(chunks)} чанков для проекта {project}")
-            
-        except Exception as e:
-            logger.error(f"Ошибка при сохранении чанков: {e}")
+
+            logger.info("Сохранено %s чанков для проекта %s", len(chunks), project)
+        except Exception as error:
+            logger.error("Ошибка при сохранении чанков: %s", error, exc_info=True)
             raise
-    
+
     async def get_project_config(self, project: str) -> Optional[Dict[str, Any]]:
-        """Получение конфигурации проекта"""
+        """Получение конфигурации проекта."""
         try:
             config_path = "config/projects.yaml"
             if not os.path.exists(config_path):
                 return None
-            
-            with open(config_path, 'r', encoding='utf-8') as f:
-                config = yaml.safe_load(f)
-            
+
+            with open(config_path, "r", encoding="utf-8") as file:
+                config = yaml.safe_load(file)
+
             projects = config.get("projects", [])
-            return next((p for p in projects if p["name"] == project), None)
-            
-        except Exception as e:
-            logger.error(f"Ошибка получения конфигурации проекта {project}: {e}")
-            return None
-    
-    async def get_project_stats(self, project: str) -> Dict[str, Any]:
-        """Получение статистики проекта"""
-        try:
-            # Подсчет чанков для проекта
-            results = await self.collection.get(
-                where={"project": project}
+            return next((item for item in projects if item["name"] == project), None)
+        except Exception as error:
+            logger.error(
+                "Ошибка получения конфигурации проекта %s: %s", project, error, exc_info=True
             )
-            
-            total_chunks = len(results['ids']) if results['ids'] else 0
-            
-            # Подсчет уникальных файлов
-            files = set()
-            file_types = {}
-            
-            if results['metadatas']:
-                for metadata in results['metadatas']:
-                    if 'file' in metadata:
-                        files.add(metadata['file'])
-                    if 'type' in metadata:
-                        file_type = metadata['type']
-                        file_types[file_type] = file_types.get(file_type, 0) + 1
-            
+            return None
+
+    async def get_project_stats(self, project: str) -> Dict[str, Any]:
+        """Получение статистики проекта."""
+        try:
+            collection = await self._get_project_collection(project)
+            total_chunks = await asyncio.to_thread(collection.count)
+
+            metadatas_result = await asyncio.to_thread(
+                collection.get,
+                ids=None,
+                include=["metadatas"],
+            )
+            metadatas = metadatas_result.get("metadatas", []) or []
+
+            files = {
+                metadata.get("file")
+                for metadata in metadatas
+                if metadata and metadata.get("file")
+            }
+            file_types: Dict[str, int] = {}
+            for metadata in metadatas:
+                if not metadata:
+                    continue
+                file_type = metadata.get("type")
+                if file_type:
+                    file_types[file_type] = file_types.get(file_type, 0) + 1
+
             return {
                 "total_chunks": total_chunks,
                 "total_files": len(files),
                 "file_types": file_types,
-                "last_indexed": None  # TODO: Добавить отслеживание времени
+                "last_indexed": None,
             }
-            
-        except Exception as e:
-            logger.error(f"Ошибка получения статистики проекта {project}: {e}")
+        except Exception as error:
+            logger.error(
+                "Ошибка получения статистики проекта %s: %s", project, error, exc_info=True
+            )
             return {"total_chunks": 0, "total_files": 0, "file_types": {}}
-    
+
     async def get_global_stats(self) -> Dict[str, Any]:
-        """Получение глобальной статистики"""
+        """Получение глобальной статистики по всем коллекциям."""
+        if self.client is None:
+            raise RuntimeError("ChromaDB клиент не инициализирован")
+
         try:
-            # Получение всех данных
-            results = await self.collection.get()
-            
-            total_chunks = len(results['ids']) if results['ids'] else 0
-            
-            # Подсчет проектов
-            projects = set()
-            if results['metadatas']:
-                for metadata in results['metadatas']:
-                    if 'project' in metadata:
-                        projects.add(metadata['project'])
-            
+            collections = await asyncio.to_thread(self.client.list_collections)
+            total_chunks = 0
+            total_projects = 0
+
+            for collection in collections:
+                count = await asyncio.to_thread(collection.count)
+                total_chunks += count
+                if collection.name.startswith("kb_"):
+                    total_projects += 1
+
             return {
                 "total_chunks": total_chunks,
-                "total_projects": len(projects),
-                "total_files": 0,  # TODO: Подсчитать уникальные файлы
-                "storage_size": 0,  # TODO: Подсчитать размер хранилища
-                "last_updated": None
+                "total_projects": total_projects,
+                "total_files": 0,
+                "storage_size": 0,
+                "last_updated": None,
             }
-            
-        except Exception as e:
-            logger.error(f"Ошибка получения глобальной статистики: {e}")
+        except Exception as error:
+            logger.error("Ошибка получения глобальной статистики: %s", error, exc_info=True)
             return {"total_chunks": 0, "total_projects": 0, "total_files": 0}
+
+    async def _get_project_collection(self, project: str):
+        if self.client is None:
+            raise RuntimeError("ChromaDB клиент не инициализирован")
+
+        collection_name = self._make_collection_name(project)
+        return await asyncio.to_thread(
+            self.client.get_or_create_collection,
+            name=collection_name,
+            metadata={"description": f"Knowledge base for {project}"},
+        )
+
+    @staticmethod
+    def _make_collection_name(project: str) -> str:
+        return f"kb_{project.replace('-', '_')}"
